@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        canvas { border: 1px solid #ccc; margin: 10px; }
+        .container { display: flex; flex-wrap: wrap; align-items: center; }
+        .size-label { margin: 10px; font-family: Arial; }
+    </style>
+</head>
+<body>
+    <h2>Favicon Generator</h2>
+    <div class="container">
+        <div class="size-label">16x16:</div>
+        <canvas id="canvas16" width="16" height="16"></canvas>
+        <div class="size-label">32x32:</div>
+        <canvas id="canvas32" width="32" height="32"></canvas>
+        <div class="size-label">48x48:</div>
+        <canvas id="canvas48" width="48" height="48"></canvas>
+    </div>
+    
+    <script>
+        function drawFavicon(canvas, size) {
+            const ctx = canvas.getContext('2d');
+            const scale = size / 32;
+            
+            // 배경 원
+            ctx.fillStyle = '#3B82F6';
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, (size/2) - 1, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#1E40AF';
+            ctx.lineWidth = 1 * scale;
+            ctx.stroke();
+            
+            // 책 모양
+            ctx.fillStyle = 'white';
+            ctx.fillRect(8 * scale, 10 * scale, 16 * scale, 12 * scale);
+            
+            ctx.fillStyle = '#E5E7EB';
+            ctx.fillRect(8 * scale, 10 * scale, 16 * scale, 2 * scale);
+            
+            // 페이지 선들
+            ctx.strokeStyle = '#9CA3AF';
+            ctx.lineWidth = 0.5 * scale;
+            ctx.beginPath();
+            ctx.moveTo(10 * scale, 14 * scale);
+            ctx.lineTo(22 * scale, 14 * scale);
+            ctx.moveTo(10 * scale, 16 * scale);
+            ctx.lineTo(20 * scale, 16 * scale);
+            ctx.moveTo(10 * scale, 18 * scale);
+            ctx.lineTo(22 * scale, 18 * scale);
+            ctx.stroke();
+            
+            // AI 아이콘 (작은 원)
+            ctx.fillStyle = '#F59E0B';
+            ctx.beginPath();
+            ctx.arc(20 * scale, 8 * scale, 3 * scale, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // 별 모양
+            ctx.fillStyle = 'white';
+            ctx.font = `${6 * scale}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillText('✦', 20 * scale, 10 * scale);
+        }
+        
+        drawFavicon(document.getElementById('canvas16'), 16);
+        drawFavicon(document.getElementById('canvas32'), 32);
+        drawFavicon(document.getElementById('canvas48'), 48);
+        
+        // 다운로드 함수
+        function downloadCanvas(canvasId, fileName) {
+            const canvas = document.getElementById(canvasId);
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+        
+        // 버튼들 추가
+        setTimeout(() => {
+            ['16', '32', '48'].forEach(size => {
+                const btn = document.createElement('button');
+                btn.textContent = `Download ${size}x${size}`;
+                btn.onclick = () => downloadCanvas(`canvas${size}`, `favicon-${size}.png`);
+                btn.style.margin = '5px';
+                document.body.appendChild(btn);
+            });
+        }, 100);
+    </script>
+</body>
+</html>

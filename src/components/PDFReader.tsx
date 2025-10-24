@@ -36,6 +36,111 @@ interface Note {
   y: number
 }
 
+// 하이라이트 오버레이 컴포넌트
+function HighlightOverlay({ highlights, pageNumber }: { highlights: Highlight[], pageNumber: number }) {
+  const [overlayHighlights, setOverlayHighlights] = useState<Array<Highlight & { actualX: number, actualY: number, actualWidth: number, actualHeight: number }>>([])
+
+  useEffect(() => {
+    const updateHighlightPositions = () => {
+      // PDF 페이지의 실제 렌더링 영역을 찾기
+      const pdfCanvas = document.querySelector('.react-pdf__Page__canvas')
+      const textLayer = document.querySelector('.react-pdf__Page__textContent')
+      const pdfPage = document.querySelector('.react-pdf__Page')
+      
+      // 가장 정확한 기준점 선택
+      const pageRect = (pdfCanvas || textLayer || pdfPage)?.getBoundingClientRect()
+      
+      if (!pageRect || highlights.length === 0) {
+        setOverlayHighlights([])
+        return
+      }
+      
+      // PDF 컨테이너 기준으로 상대 위치 계산
+      const container = document.querySelector('.pdf-container')
+      const containerRect = container?.getBoundingClientRect()
+      
+      if (!containerRect) {
+        setOverlayHighlights([])
+        return
+      }
+      
+      const offsetX = pageRect.left - containerRect.left
+      const offsetY = pageRect.top - containerRect.top
+      
+      console.log('하이라이트 위치 계산:', {
+        pageRect: { left: pageRect.left, top: pageRect.top, width: pageRect.width, height: pageRect.height },
+        containerRect: { left: containerRect.left, top: containerRect.top },
+        offset: { x: offsetX, y: offsetY }
+      })
+      
+      const updatedHighlights = highlights.map(highlight => {
+        const actualX = offsetX + (highlight.x * (pageRect.width+2)) - 1 // 1px 왼쪽으로 이동
+        const actualY = offsetY + (highlight.y * pageRect.height)
+        const actualWidth = highlight.width * pageRect.width
+        const actualHeight = highlight.height * pageRect.height
+        
+        console.log(`하이라이트 ${highlight.id}:`, {
+          stored: { x: highlight.x, y: highlight.y, width: highlight.width, height: highlight.height },
+          calculated: { x: actualX, y: actualY, width: actualWidth, height: actualHeight }
+        })
+        
+        return {
+          ...highlight,
+          actualX,
+          actualY,
+          actualWidth,
+          actualHeight
+        }
+      })
+      
+      setOverlayHighlights(updatedHighlights)
+    }
+
+    // 초기 계산
+    updateHighlightPositions()
+    
+    // 리사이즈 이벤트 리스너
+    const handleResize = () => {
+      setTimeout(updateHighlightPositions, 100) // PDF 렌더링이 완료되기를 기다림
+    }
+    
+    window.addEventListener('resize', handleResize)
+    
+    // PDF 페이지 로드 완료 후 다시 계산
+    const observer = new MutationObserver(() => {
+      setTimeout(updateHighlightPositions, 200)
+    })
+    
+    const pdfContainer = document.querySelector('.react-pdf__Page')
+    if (pdfContainer) {
+      observer.observe(pdfContainer, { childList: true, subtree: true })
+    }
+    
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      observer.disconnect()
+    }
+  }, [highlights, pageNumber])
+
+  return (
+    <>
+      {overlayHighlights.map((highlight) => (
+        <div
+          key={highlight.id}
+          className="absolute bg-yellow-300 bg-opacity-30 border border-yellow-400 pointer-events-none z-10"
+          style={{
+            left: `${highlight.actualX}px`,
+            top: `${highlight.actualY}px`,
+            width: `${highlight.actualWidth}px`,
+            height: `${highlight.actualHeight}px`,
+          }}
+          title={highlight.text}
+        />
+      ))}
+    </>
+  )
+}
+
 export default function PDFReader({ pdfs }: PDFReaderProps) {
   const [selectedPDF, setSelectedPDF] = useState<File | null>(null)
   const [selectedPDFId, setSelectedPDFId] = useState<string | null>(null)
@@ -48,6 +153,7 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
   const [showHighlights, setShowHighlights] = useState<boolean>(true)
   const [aiSummary, setAiSummary] = useState<string>('')
   const [isLoadingSummary, setIsLoadingSummary] = useState<boolean>(false)
+  const [pageLoaded, setPageLoaded] = useState<boolean>(false)
   const supabase = createClient()
   const { user, loading: authLoading } = useAuth()
 
@@ -224,12 +330,29 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
       const range = currentSelection.getRangeAt(0)
       const rect = range.getBoundingClientRect()
       
-      // PDF 컨테이너 기준으로 상대 위치 계산
-      const pdfContainer = document.querySelector('.react-pdf__Page')
-      const containerRect = pdfContainer?.getBoundingClientRect()
+      // PDF 페이지의 실제 렌더링 영역을 찾기 위해 여러 요소 확인
+      const pdfCanvas = document.querySelector('.react-pdf__Page__canvas')
+      const textLayer = document.querySelector('.react-pdf__Page__textContent') 
+      const pdfPage = document.querySelector('.react-pdf__Page')
       
-      const relativeX = containerRect ? rect.left - containerRect.left : rect.left
-      const relativeY = containerRect ? rect.top - containerRect.top : rect.top
+      // 가장 정확한 기준점 선택 (Canvas > TextLayer > Page 순)
+      const pageRect = (pdfCanvas || textLayer || pdfPage)?.getBoundingClientRect()
+      
+      if (!pageRect) {
+        console.error('PDF 페이지를 찾을 수 없습니다')
+        return
+      }
+      
+      console.log('선택 영역:', { left: rect.left, top: rect.top, width: rect.width, height: rect.height })
+      console.log('PDF 페이지 영역:', { left: pageRect.left, top: pageRect.top, width: pageRect.width, height: pageRect.height })
+      
+      // PDF 페이지 크기 기준으로 상대 비율 계산 (0-1 사이 값)
+      const relativeX = (rect.left - pageRect.left) / pageRect.width
+      const relativeY = (rect.top - pageRect.top) / pageRect.height
+      const relativeWidth = rect.width / pageRect.width
+      const relativeHeight = rect.height / pageRect.height
+      
+      console.log('상대 위치:', { x: relativeX, y: relativeY, width: relativeWidth, height: relativeHeight })
       
       const newHighlight: Highlight = {
         id: crypto.randomUUID(),
@@ -239,8 +362,8 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
         note: '',
         x: relativeX,
         y: relativeY,
-        width: rect.width,
-        height: rect.height
+        width: relativeWidth,
+        height: relativeHeight
       }
 
       console.log('하이라이트 추가:', newHighlight)
@@ -254,7 +377,7 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
         return updated
       })
 
-      // API를 통해 하이라이트 저장
+      // API를 통해 하이라이트 저장 (상대 비율로 저장)
       const saveData = {
         document_id: selectedPDFId,
         page_number: pageNumber,
@@ -262,8 +385,8 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
         note: '',
         position_x: relativeX,
         position_y: relativeY,
-        position_width: rect.width,
-        position_height: rect.height,
+        position_width: relativeWidth,
+        position_height: relativeHeight,
         user_id: user.id
       }
       
@@ -334,8 +457,18 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
   }
 
   const goToHighlight = (highlight: Highlight) => {
-    setPageNumber(highlight.pageNumber)
+    // 같은 페이지가 아닐 때만 페이지 로드 상태 초기화
+    if (highlight.pageNumber !== pageNumber) {
+      setPageLoaded(false)
+      setPageNumber(highlight.pageNumber)
+    }
+    // 같은 페이지일 때는 페이지 번호만 설정 (이미 같으므로 실제로는 변경되지 않음)
   }
+
+  // 페이지 번호가 변경될 때마다 페이지 로드 상태 초기화
+  useEffect(() => {
+    setPageLoaded(false)
+  }, [pageNumber])
 
   const deleteHighlight = async (highlightId: string) => {
     if (!user) return
@@ -473,7 +606,10 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
                 <div className="flex justify-between items-center mb-4">
                   <div className="flex items-center space-x-4">
                     <button
-                      onClick={() => setPageNumber(Math.max(1, pageNumber - 1))}
+                      onClick={() => {
+                        setPageLoaded(false)
+                        setPageNumber(Math.max(1, pageNumber - 1))
+                      }}
                       disabled={pageNumber <= 1}
                       className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50 hover:bg-gray-300"
                     >
@@ -483,7 +619,10 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
                       {pageNumber} / {numPages}
                     </span>
                     <button
-                      onClick={() => setPageNumber(Math.min(numPages, pageNumber + 1))}
+                      onClick={() => {
+                        setPageLoaded(false)
+                        setPageNumber(Math.min(numPages, pageNumber + 1))
+                      }}
                       disabled={pageNumber >= numPages}
                       className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50 hover:bg-gray-300"
                     >
@@ -512,7 +651,7 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
                   onMouseUp={handleTextSelection}
                   onClick={handleTextSelection}
                   onKeyUp={handleTextSelection}
-                  className="border rounded relative pdf-container"
+                  className="border rounded relative pdf-container flex justify-center"
                   style={{ userSelect: 'text' }}
                 >
                   <Document
@@ -525,6 +664,10 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
                       renderTextLayer={true}
                       renderAnnotationLayer={false}
                       className="pdf-page"
+                      onLoadSuccess={() => {
+                        setPageLoaded(true)
+                        console.log('PDF 페이지 로드 완료')
+                      }}
                       onGetTextSuccess={(textItems) => {
                         console.log('PDF 텍스트 레이어 로드됨:', textItems)
                       }}
@@ -532,21 +675,12 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
                   </Document>
                   
                   {/* 하이라이트 오버레이 */}
-                  {showHighlights && highlights
-                    .filter(h => h.pageNumber === pageNumber)
-                    .map((highlight) => (
-                      <div
-                        key={highlight.id}
-                        className="absolute bg-yellow-300 bg-opacity-30 border border-yellow-400 pointer-events-none"
-                        style={{
-                          left: `${highlight.x}px`,
-                          top: `${highlight.y}px`,
-                          width: `${highlight.width}px`,
-                          height: `${highlight.height}px`,
-                        }}
-                        title={highlight.text}
-                      />
-                    ))}
+                  {showHighlights && pageLoaded && (
+                    <HighlightOverlay 
+                      highlights={highlights.filter(h => h.pageNumber === pageNumber)}
+                      pageNumber={pageNumber}
+                    />
+                  )}
                 </div>
 
                 {/* 선택된 텍스트 표시 */}

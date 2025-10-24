@@ -269,9 +269,15 @@ export default function Dashboard() {
         <div className="mx-auto px-4 sm:px-6 lg:px-8" style={{ maxWidth: '1440px' }}>
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <h1 className="text-xl font-semibold text-gray-900">
-                AI Knowledge Factory
-              </h1>
+              <div className="flex items-center space-x-3">
+                {/* 로고 */}
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                  <BookOpen className="w-6 h-6 text-white" />
+                </div>
+                <h1 className="text-xl font-semibold text-gray-900">
+                  나만의 AI 스터디룸
+                </h1>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
@@ -321,7 +327,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="mx-auto px-4 sm:px-6 lg:px-8 py-6" style={{ maxWidth: '1600px' }}>
         <div className="flex space-x-6">
           {/* Sidebar */}
           <div className="w-64 space-y-2">
