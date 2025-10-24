@@ -13,6 +13,8 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 
 interface PDFReaderProps {
   pdfs: Array<{id: string, name: string, file: File | null, document?: any}>
+  initialPage?: number
+  targetHighlightId?: string
 }
 
 interface Highlight {
@@ -133,7 +135,8 @@ function HighlightOverlay({ highlights, pageNumber }: { highlights: Highlight[],
       {overlayHighlights.map((highlight) => (
         <div
           key={highlight.id}
-          className="absolute bg-yellow-300 bg-opacity-30 border border-yellow-400 pointer-events-none z-10"
+          data-highlight-id={highlight.id}
+          className="absolute bg-yellow-300 bg-opacity-30 border border-yellow-400 pointer-events-none z-10 transition-all duration-300"
           style={{
             left: `${highlight.actualX}px`,
             top: `${highlight.actualY}px`,
@@ -147,7 +150,7 @@ function HighlightOverlay({ highlights, pageNumber }: { highlights: Highlight[],
   )
 }
 
-export default function PDFReader({ pdfs }: PDFReaderProps) {
+export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFReaderProps) {
   const [selectedPDF, setSelectedPDF] = useState<File | null>(null)
   const [selectedPDFId, setSelectedPDFId] = useState<string | null>(null)
   const [numPages, setNumPages] = useState<number>(0)
@@ -269,6 +272,12 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
     if (!highlightsLoaded) {
       loadHighlights()
       setHighlightsLoaded(true)
+    }
+    
+    // 초기 페이지가 지정된 경우 해당 페이지로 이동
+    if (initialPage && initialPage !== pageNumber) {
+      setPageNumber(initialPage)
+      setPageLoaded(false)
     }
   }
 
@@ -600,6 +609,30 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
     setHighlightsLoaded(false)
     setHighlights([]) // 기존 하이라이트 클리어
   }, [selectedPDFId])
+
+  // 타겟 하이라이트로 스크롤
+  useEffect(() => {
+    if (targetHighlightId && highlights.length > 0 && pageLoaded) {
+      const targetHighlight = highlights.find(h => h.id === targetHighlightId)
+      if (targetHighlight && targetHighlight.pageNumber === pageNumber) {
+        setTimeout(() => {
+          // 해당 하이라이트를 시각적으로 강조
+          const highlightElement = document.querySelector(`[data-highlight-id="${targetHighlightId}"]`)
+          if (highlightElement) {
+            highlightElement.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'center' 
+            })
+            // 잠시 강조 효과
+            highlightElement.classList.add('ring-4', 'ring-blue-500', 'ring-opacity-75')
+            setTimeout(() => {
+              highlightElement.classList.remove('ring-4', 'ring-blue-500', 'ring-opacity-75')
+            }, 2000)
+          }
+        }, 500)
+      }
+    }
+  }, [targetHighlightId, highlights, pageLoaded, pageNumber])
 
   return (
     <div className="flex h-screen">

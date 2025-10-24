@@ -6,6 +6,7 @@ import { db, supabase } from '@/lib/supabase'
 import PDFReader from './PDFReader'
 import ConceptMap from './ConceptMap'
 import CourseRecommendation from './CourseRecommendation'
+import HighlightAnalytics from './HighlightAnalytics'
 import ProfileSetup from './ProfileSetup'
 import UserProfileModal from './UserProfileModal'
 import { 
@@ -22,7 +23,8 @@ import {
   Users,
   CheckCircle,
   X,
-  AlertCircle
+  AlertCircle,
+  Hash
 } from 'lucide-react'
 
 export default function Dashboard() {
@@ -44,6 +46,8 @@ export default function Dashboard() {
   const [isLoadingUsers, setIsLoadingUsers] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const [targetPage, setTargetPage] = useState<number | undefined>(undefined)
+  const [targetHighlightId, setTargetHighlightId] = useState<string | undefined>(undefined)
 
   // Load user data from Supabase (한 번만)
   useEffect(() => {
@@ -238,11 +242,40 @@ export default function Dashboard() {
   }
 
   const handleDocumentSelect = (document: any) => {
+    // 타겟 상태 리셋 (일반적인 문서 선택 시)
+    setTargetPage(undefined)
+    setTargetHighlightId(undefined)
+    
     // 선택된 문서 설정
     setSelectedDocument(document)
     console.log('선택된 문서:', document.title)
     // PDF Reader 탭으로 이동
     setActiveTab('reader')
+  }
+
+  const handleNavigateToHighlight = (documentId: string, pageNumber: number, highlightId: string) => {
+    // 해당 문서 찾기
+    const document = documents.find(doc => doc.id === documentId)
+    if (document) {
+      // 타겟 페이지와 하이라이트 설정
+      setTargetPage(pageNumber)
+      setTargetHighlightId(highlightId)
+      
+      // 문서 선택
+      setSelectedDocument(document)
+      // PDF Reader 탭으로 이동
+      setActiveTab('reader')
+      
+      console.log('하이라이트로 이동:', {
+        document: document.title,
+        page: pageNumber,
+        highlightId: highlightId
+      })
+      
+      // 성공 메시지 표시
+      setSuccessMessage(`"${document.title}" ${pageNumber}페이지의 하이라이트로 이동합니다.`)
+      setTimeout(() => setSuccessMessage(''), 2000)
+    }
   }
 
   const handleDocumentDelete = (document: any, event: React.MouseEvent) => {
@@ -371,6 +404,7 @@ export default function Dashboard() {
   const tabs = [
     { id: 'dashboard', name: '대시보드', icon: BarChart3 },
     { id: 'reader', name: 'PDF 리더', icon: BookOpen },
+    { id: 'analytics', name: '하이라이트 빈도', icon: Hash },
     { id: 'concept', name: '개념 연결맵', icon: Lightbulb },
     { id: 'recommendations', name: '추천 강좌', icon: Target },
   ]
@@ -757,12 +791,16 @@ export default function Dashboard() {
                 user={user}
               />
             )}
-            {activeTab === 'reader' && selectedDocument && <PDFReader pdfs={[{
-              id: selectedDocument.id,
-              name: selectedDocument.title,
-              file: null, // 서버에서 로드할 파일
-              document: selectedDocument
-            }]} />}
+            {activeTab === 'reader' && selectedDocument && <PDFReader 
+              pdfs={[{
+                id: selectedDocument.id,
+                name: selectedDocument.title,
+                file: null, // 서버에서 로드할 파일
+                document: selectedDocument
+              }]} 
+              initialPage={targetPage}
+              targetHighlightId={targetHighlightId}
+            />}
             {activeTab === 'reader' && !selectedDocument && (
               <div className="flex items-center justify-center h-96">
                 <div className="text-center">
@@ -771,6 +809,9 @@ export default function Dashboard() {
                   <p className="text-gray-500">대시보드에서 읽고 싶은 문서를 클릭하세요.</p>
                 </div>
               </div>
+            )}
+            {activeTab === 'analytics' && (
+              <HighlightAnalytics onNavigateToHighlight={handleNavigateToHighlight} />
             )}
             {activeTab === 'concept' && <ConceptMap />}
             {activeTab === 'recommendations' && <CourseRecommendation />}
