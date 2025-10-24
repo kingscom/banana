@@ -811,7 +811,20 @@ export default function Dashboard() {
               </div>
             )}
             {activeTab === 'analytics' && (
-              <HighlightAnalytics onNavigateToHighlight={handleNavigateToHighlight} />
+              <HighlightAnalytics 
+                onNavigateToHighlight={handleNavigateToHighlight}
+                onNavigateToConceptMap={() => setActiveTab('concept')}
+                onNavigateToCourses={(searchKeyword) => {
+                  setActiveTab('recommendations')
+                  // 추천 강좌 컴포넌트에 검색 키워드 전달하는 이벤트 발생
+                  setTimeout(() => {
+                    const event = new CustomEvent('searchCourses', { 
+                      detail: { keyword: searchKeyword } 
+                    })
+                    window.dispatchEvent(event)
+                  }, 300) // 컴포넌트가 완전히 마운트된 후 실행
+                }}
+              />
             )}
             {activeTab === 'concept' && <ConceptMap />}
             {activeTab === 'recommendations' && <CourseRecommendation />}

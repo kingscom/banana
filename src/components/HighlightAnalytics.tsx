@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from './AuthProvider'
-import { BarChart, FileText, ChevronRight, Hash, Calendar } from 'lucide-react'
+import { BarChart, FileText, ChevronRight, Hash, Calendar, ExternalLink, Search, MapPin, X } from 'lucide-react'
 
 interface Highlight {
   id: string
@@ -34,6 +34,8 @@ interface WordFrequency {
 
 interface HighlightAnalyticsProps {
   onNavigateToHighlight?: (documentId: string, pageNumber: number, highlightId: string) => void
+  onNavigateToConceptMap?: () => void
+  onNavigateToCourses?: (searchKeyword: string) => void
 }
 
 // 워드 클라우드 캔버스 컴포넌트
@@ -345,7 +347,11 @@ function WordCloudCanvas({
   )
 }
 
-export default function HighlightAnalytics({ onNavigateToHighlight }: HighlightAnalyticsProps) {
+export default function HighlightAnalytics({ 
+  onNavigateToHighlight, 
+  onNavigateToConceptMap,
+  onNavigateToCourses 
+}: HighlightAnalyticsProps) {
   const { user } = useAuth()
   const [highlights, setHighlights] = useState<Highlight[]>([])
   const [documents, setDocuments] = useState<DocumentInfo[]>([])
@@ -353,6 +359,8 @@ export default function HighlightAnalytics({ onNavigateToHighlight }: HighlightA
   const [selectedWord, setSelectedWord] = useState<string | null>(null)
   const [selectedWordData, setSelectedWordData] = useState<WordFrequency | null>(null)
   const [minWordLength, setMinWordLength] = useState(2)
+  const [showKeywordModal, setShowKeywordModal] = useState(false)
+  const [clickedKeyword, setClickedKeyword] = useState<WordFrequency | null>(null)
 
   // 불용어 목록 (한국어 + 영어)
   const stopWords = new Set([
@@ -470,6 +478,8 @@ export default function HighlightAnalytics({ onNavigateToHighlight }: HighlightA
   }, [highlights, documents, minWordLength])
 
   const handleWordClick = (wordData: WordFrequency) => {
+    setClickedKeyword(wordData)
+    setShowKeywordModal(true)
     setSelectedWord(wordData.word)
     setSelectedWordData(wordData)
   }
@@ -665,6 +675,180 @@ export default function HighlightAnalytics({ onNavigateToHighlight }: HighlightA
               {maxCount}
             </div>
             <div className="text-sm text-gray-600">최다 언급 횟수</div>
+          </div>
+        </div>
+      </div>
+
+      {/* 키워드 액션 모달 */}
+      {showKeywordModal && clickedKeyword && (
+        <KeywordActionModal
+          keyword={clickedKeyword}
+          onClose={() => {
+            setShowKeywordModal(false)
+            setClickedKeyword(null)
+          }}
+          onNavigateToHighlight={onNavigateToHighlight}
+          onNavigateToConceptMap={onNavigateToConceptMap}
+          onNavigateToCourses={onNavigateToCourses}
+        />
+      )}
+    </div>
+  )
+}
+
+// 키워드 액션 모달 컴포넌트
+interface KeywordActionModalProps {
+  keyword: WordFrequency
+  onClose: () => void
+  onNavigateToHighlight?: (documentId: string, pageNumber: number, highlightId: string) => void
+  onNavigateToConceptMap?: () => void
+  onNavigateToCourses?: (searchKeyword: string) => void
+}
+
+function KeywordActionModal({
+  keyword,
+  onClose,
+  onNavigateToHighlight,
+  onNavigateToConceptMap,
+  onNavigateToCourses
+}: KeywordActionModalProps) {
+  const handleHighlightClick = (highlight: any) => {
+    if (onNavigateToHighlight) {
+      onNavigateToHighlight(highlight.document_id, highlight.page_number, highlight.id)
+    }
+    onClose()
+  }
+
+  const handleConceptMapClick = () => {
+    if (onNavigateToConceptMap) {
+      onNavigateToConceptMap()
+    }
+    onClose()
+  }
+
+  const handleCoursesClick = () => {
+    if (onNavigateToCourses) {
+      onNavigateToCourses(keyword.word)
+    }
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          {/* 모달 헤더 */}
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">
+                키워드: "{keyword.word}"
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                {keyword.count}회 언급됨 • {keyword.highlights.length}개 하이라이트
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X size={24} />
+            </button>
+          </div>
+
+          {/* 액션 버튼들 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {/* 개념 연결맵으로 이동 */}
+            <button
+              onClick={handleConceptMapClick}
+              className="flex flex-col items-center p-4 border-2 border-blue-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors group"
+            >
+              <MapPin className="w-8 h-8 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="font-medium text-gray-900">개념 연결맵</span>
+              <span className="text-sm text-gray-600 text-center mt-1">
+                키워드 관계를 시각화
+              </span>
+            </button>
+
+            {/* 추천 강좌로 이동 */}
+            <button
+              onClick={handleCoursesClick}
+              className="flex flex-col items-center p-4 border-2 border-green-200 rounded-lg hover:border-green-400 hover:bg-green-50 transition-colors group"
+            >
+              <Search className="w-8 h-8 text-green-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="font-medium text-gray-900">추천 강좌</span>
+              <span className="text-sm text-gray-600 text-center mt-1">
+                관련 강의 검색
+              </span>
+            </button>
+
+            {/* 직접 하이라이트로 이동 (기존 기능) */}
+            <button
+              onClick={() => {
+                if (keyword.highlights.length > 0) {
+                  handleHighlightClick(keyword.highlights[0])
+                }
+              }}
+              className="flex flex-col items-center p-4 border-2 border-purple-200 rounded-lg hover:border-purple-400 hover:bg-purple-50 transition-colors group"
+            >
+              <FileText className="w-8 h-8 text-purple-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="font-medium text-gray-900">첫 번째 하이라이트</span>
+              <span className="text-sm text-gray-600 text-center mt-1">
+                PDF로 바로 이동
+              </span>
+            </button>
+          </div>
+
+          {/* 하이라이트 목록 */}
+          <div>
+            <h4 className="text-lg font-semibold text-gray-900 mb-3">
+              관련 하이라이트 ({keyword.highlights.length}개)
+            </h4>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {keyword.highlights.map((highlight, index) => (
+                <div
+                  key={highlight.id}
+                  className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                  onClick={() => handleHighlightClick(highlight)}
+                >
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                      <span className="text-sm font-medium text-blue-600">
+                        {index + 1}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <h5 className="text-sm font-medium text-gray-900 truncate">
+                        {highlight.document_title}
+                      </h5>
+                      <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">
+                        {highlight.page_number}페이지
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600 line-clamp-2">
+                      {highlight.text}
+                    </p>
+                    {highlight.created_at && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {new Date(highlight.created_at).toLocaleDateString('ko-KR')}
+                      </p>
+                    )}
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 닫기 버튼 */}
+          <div className="flex justify-end mt-6">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            >
+              닫기
+            </button>
           </div>
         </div>
       </div>
