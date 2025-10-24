@@ -67,22 +67,11 @@ function HighlightOverlay({ highlights, pageNumber }: { highlights: Highlight[],
       const offsetX = pageRect.left - containerRect.left
       const offsetY = pageRect.top - containerRect.top
       
-      console.log('하이라이트 위치 계산:', {
-        pageRect: { left: pageRect.left, top: pageRect.top, width: pageRect.width, height: pageRect.height },
-        containerRect: { left: containerRect.left, top: containerRect.top },
-        offset: { x: offsetX, y: offsetY }
-      })
-      
       const updatedHighlights = highlights.map(highlight => {
         const actualX = offsetX + (highlight.x * (pageRect.width+2)) - 1 // 1px 왼쪽으로 이동
         const actualY = offsetY + (highlight.y * pageRect.height)
         const actualWidth = highlight.width * pageRect.width
         const actualHeight = highlight.height * pageRect.height
-        
-        console.log(`하이라이트 ${highlight.id}:`, {
-          stored: { x: highlight.x, y: highlight.y, width: highlight.width, height: highlight.height },
-          calculated: { x: actualX, y: actualY, width: actualWidth, height: actualHeight }
-        })
         
         return {
           ...highlight,
@@ -106,9 +95,26 @@ function HighlightOverlay({ highlights, pageNumber }: { highlights: Highlight[],
     
     window.addEventListener('resize', handleResize)
     
-    // PDF 페이지 로드 완료 후 다시 계산
-    const observer = new MutationObserver(() => {
-      setTimeout(updateHighlightPositions, 200)
+    // PDF 페이지 로드 완료 후 다시 계산 (한 번만)
+    let hasObserved = false
+    const observer = new MutationObserver((mutations) => {
+      // 텍스트 레이어나 캔버스가 추가되었을 때만 재계산
+      const hasRelevantChange = mutations.some(mutation => 
+        Array.from(mutation.addedNodes).some(node => 
+          node instanceof Element && (
+            node.classList.contains('react-pdf__Page__canvas') ||
+            node.classList.contains('react-pdf__Page__textContent')
+          )
+        )
+      )
+      
+      if (hasRelevantChange && !hasObserved) {
+        hasObserved = true
+        setTimeout(() => {
+          updateHighlightPositions()
+          hasObserved = false
+        }, 200)
+      }
     })
     
     const pdfContainer = document.querySelector('.react-pdf__Page')
@@ -154,14 +160,26 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
   const [aiSummary, setAiSummary] = useState<string>('')
   const [isLoadingSummary, setIsLoadingSummary] = useState<boolean>(false)
   const [pageLoaded, setPageLoaded] = useState<boolean>(false)
+  const [highlightsLoaded, setHighlightsLoaded] = useState<boolean>(false)
   const supabase = createClient()
   const { user, loading: authLoading } = useAuth()
 
-  // 서버에서 파일을 로드하는 함수
+  const [loadingFiles, setLoadingFiles] = useState<Set<string>>(new Set())
+
+  // 서버에서 파일을 로드하는 함수 (중복 로딩 방지)
   const loadFileFromServer = async (document: any): Promise<File | null> => {
     try {
       if (!document.file_path || !user) return null
 
+      // 이미 로딩 중인 파일이면 스킵
+      if (loadingFiles.has(document.id)) {
+        console.log('파일 로딩 중 스킵:', document.file_name)
+        return null
+      }
+
+      setLoadingFiles(prev => new Set(prev).add(document.id))
+
+      console.log('파일 로딩 시작:', document.file_name)
       const response = await fetch(`/api/files/${user.id}/${document.file_name}`)
       if (!response.ok) {
         console.error('파일 로드 실패:', response.statusText)
@@ -170,10 +188,17 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
 
       const blob = await response.blob()
       const file = new File([blob], document.file_name, { type: document.file_type })
+      console.log('파일 로딩 완료:', document.file_name)
       return file
     } catch (error) {
       console.error('파일 로드 중 오류:', error)
       return null
+    } finally {
+      setLoadingFiles(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(document.id)
+        return newSet
+      })
     }
   }
 
@@ -241,7 +266,10 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
   // PDF 문서가 로드된 후 하이라이트 불러오기
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages)
-    loadHighlights()
+    if (!highlightsLoaded) {
+      loadHighlights()
+      setHighlightsLoaded(true)
+    }
   }
 
   // 하이라이트 불러오기
@@ -444,12 +472,6 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
       window.getSelection()?.removeAllRanges()
       
       console.log('하이라이트 추가 완료')
-      
-      // 추가 후 데이터베이스에서 다시 로드하여 동기화
-      setTimeout(() => {
-        console.log('하이라이트 목록 다시 로드')
-        loadHighlights()
-      }, 500)
     } catch (error) {
       console.error('하이라이트 저장 중 오류:', error)
       alert('하이라이트 저장 중 오류가 발생했습니다.')
@@ -546,26 +568,38 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
     )
   }
 
-  // 첫 번째 PDF를 자동으로 선택
+  // 첫 번째 PDF를 자동으로 선택 (한 번만)
   useEffect(() => {
-    if (!selectedPDF && pdfs.length > 0) {
+    if (!selectedPDF && pdfs.length > 0 && user) {
       const firstPdf = pdfs[0]
       
       if (firstPdf.file) {
         // 로컬 파일인 경우
         setSelectedPDF(firstPdf.file)
         setSelectedPDFId(firstPdf.id)
-      } else if (firstPdf.document) {
-        // 서버 파일인 경우 로드
+        setHighlightsLoaded(false)
+      } else if (firstPdf.document && !selectedPDF) {
+        // 서버 파일인 경우 로드 (이미 로딩 중이 아닐 때만)
+        console.log('서버에서 파일 로딩 시작:', firstPdf.document.file_name)
         loadFileFromServer(firstPdf.document).then(file => {
           if (file) {
             setSelectedPDF(file)
             setSelectedPDFId(firstPdf.id)
+            setHighlightsLoaded(false)
+            console.log('서버 파일 로딩 완료:', firstPdf.document.title)
           }
+        }).catch(error => {
+          console.error('서버 파일 로딩 실패:', error)
         })
       }
     }
-  }, [pdfs, selectedPDF, user])
+  }, [pdfs.length, user?.id]) // 의존성 배열 최적화
+
+  // PDF ID가 변경될 때 하이라이트 로딩 상태 리셋
+  useEffect(() => {
+    setHighlightsLoaded(false)
+    setHighlights([]) // 기존 하이라이트 클리어
+  }, [selectedPDFId])
 
   return (
     <div className="flex h-screen">

@@ -45,12 +45,12 @@ export default function Dashboard() {
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
 
-  // Load user data from Supabase
+  // Load user data from Supabase (한 번만)
   useEffect(() => {
-    if (user) {
+    if (user && !loading) {
       loadUserData()
     }
-  }, [user])
+  }, [user?.id]) // user.id만 의존성으로 설정하여 불필요한 재호출 방지
 
   // Check if profile setup is needed
   useEffect(() => {
@@ -122,8 +122,15 @@ export default function Dashboard() {
     }
   }
 
+  const [isLoadingData, setIsLoadingData] = useState(false)
+
   const loadUserData = async () => {
-    if (!user) return
+    if (!user || isLoadingData) {
+      console.log('사용자 데이터 로딩 스킵:', { hasUser: !!user, isLoading: isLoadingData })
+      return
+    }
+    
+    setIsLoadingData(true)
     
     try {
       console.log('📊 사용자 데이터 로딩 시작:', user.id)
@@ -133,16 +140,21 @@ export default function Dashboard() {
       const result = await response.json()
       
       if (response.ok) {
-        console.log('📄 로드된 문서들:', result.data)
+        console.log('📄 로드된 문서들:', result.data?.length || 0, '개')
         setDocuments(result.data || [])
         
-        // 문서가 있으면 하이라이트도 로드
+        // 문서가 있으면 하이라이트도 로드 (병렬 처리 최적화)
         if (result.data && result.data.length > 0) {
           const allHighlights = await Promise.all(
             result.data.map(async (doc: any) => {
-              const hlResponse = await fetch(`/api/highlights?document_id=${doc.id}&user_id=${user.id}`)
-              const hlResult = await hlResponse.json()
-              return hlResult.data || []
+              try {
+                const hlResponse = await fetch(`/api/highlights?document_id=${doc.id}&user_id=${user.id}`)
+                const hlResult = await hlResponse.json()
+                return hlResult.data || []
+              } catch (error) {
+                console.error(`하이라이트 로딩 실패 (${doc.id}):`, error)
+                return []
+              }
             })
           )
           setHighlights(allHighlights.flat() || [])
@@ -161,6 +173,8 @@ export default function Dashboard() {
       setDocuments([])
       setHighlights([])
       setLearningProgress([])
+    } finally {
+      setIsLoadingData(false)
     }
   }
 

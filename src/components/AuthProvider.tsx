@@ -89,8 +89,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         setUser(session?.user ?? null)
         setLoading(false)
 
-        // 로그인 시 사용자 프로필 로드 (단, 로그아웃 중이 아닐 때만)
-        if (event === 'SIGNED_IN' && session?.user && !isSigningOut) {
+        // 로그인 시 사용자 프로필 로드 (단, 로그아웃 중이 아니고 프로필이 없을 때만)
+        if (event === 'SIGNED_IN' && session?.user && !isSigningOut && !userProfile) {
           console.log('🚀 Loading profile for signed in user...')
           await loadUserProfile(session.user.id)
         } else if (event === 'SIGNED_OUT' || (!session && user)) {
