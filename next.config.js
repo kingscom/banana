@@ -5,6 +5,9 @@ const nextConfig = {
     config.resolve.alias.encoding = false;
     return config;
   },
+  experimental: {
+    serverComponentsExternalPackages: ['@supabase/supabase-js']
+  },
 };
 
 module.exports = nextConfig;

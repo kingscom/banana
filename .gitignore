@@ -113,3 +113,7 @@ Desktop.ini
 .branches
 .temp
 supabase/.temp
+
+# Uploads (사용자 업로드 파일)
+uploads/
+!uploads/.gitkeep

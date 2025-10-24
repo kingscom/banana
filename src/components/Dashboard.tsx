@@ -16,7 +16,8 @@ import {
   LogOut,
   FileText,
   Lightbulb,
-  Target
+  Target,
+  Trash2
 } from 'lucide-react'
 
 export default function Dashboard() {
@@ -110,32 +111,38 @@ export default function Dashboard() {
     if (!user) return
     
     try {
-      // 실제 Supabase가 연결되지 않은 경우 데모 데이터 사용
-      if (user.id.startsWith('demo-user-')) {
+      console.log('📊 사용자 데이터 로딩 시작:', user.id)
+      
+      // documents 테이블에서 직접 데이터 가져오기
+      const response = await fetch(`/api/documents?user_id=${user.id}`)
+      const result = await response.json()
+      
+      if (response.ok) {
+        console.log('📄 로드된 문서들:', result.data)
+        setDocuments(result.data || [])
+        
+        // 문서가 있으면 하이라이트도 로드
+        if (result.data && result.data.length > 0) {
+          const allHighlights = await Promise.all(
+            result.data.map(async (doc: any) => {
+              const hlResponse = await fetch(`/api/highlights?document_id=${doc.id}&user_id=${user.id}`)
+              const hlResult = await hlResponse.json()
+              return hlResult.data || []
+            })
+          )
+          setHighlights(allHighlights.flat() || [])
+        } else {
+          setHighlights([])
+        }
+      } else {
+        console.error('문서 로딩 실패:', result.error)
         setDocuments([])
         setHighlights([])
-        setLearningProgress([])
-        return
       }
       
-      const [docs, progress] = await Promise.all([
-        db.getDocuments(user.id),
-        db.getLearningProgress(user.id)
-      ])
-      
-      setDocuments(docs || [])
-      setLearningProgress(progress || [])
-      
-      // 문서가 있으면 하이라이트도 로드
-      if (docs && docs.length > 0) {
-        const allHighlights = await Promise.all(
-          docs.map(doc => db.getHighlights(doc.id))
-        )
-        setHighlights(allHighlights.flat() || [])
-      }
+      setLearningProgress([])
     } catch (error) {
-      console.error('Error loading user data:', error)
-      // 에러 시 빈 배열로 초기화
+      console.error('사용자 데이터 로딩 중 오류:', error)
       setDocuments([])
       setHighlights([])
       setLearningProgress([])
@@ -153,15 +160,83 @@ export default function Dashboard() {
     await signOut()
   }
 
-  const handlePDFUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePDFUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
-    if (files) {
-      const newPDFs = Array.from(files).map(file => ({
-        id: Date.now() + Math.random().toString(36),
-        name: file.name,
-        file
-      }))
-      setUploadedPDFs(prev => [...prev, ...newPDFs])
+    if (!files || !user) return
+
+    const fileArray = Array.from(files)
+    
+    for (const file of fileArray) {
+      try {
+        console.log('파일 업로드 시작:', file.name)
+        
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('userId', user.id)
+
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!response.ok) {
+          throw new Error('Upload failed')
+        }
+
+        const result = await response.json()
+        console.log('업로드 성공:', result)
+
+        // 문서 목록 새로고침 (데이터베이스에서 다시 로드)
+        await loadUserData()
+        
+        console.log('파일 업로드 및 데이터베이스 저장 완료:', result.document.title)
+        
+      } catch (error) {
+        console.error('파일 업로드 실패:', error)
+        alert(`파일 업로드 실패: ${file.name}`)
+      }
+    }
+
+    // 파일 입력 초기화
+    event.target.value = ''
+  }
+
+  const handleDocumentSelect = (document: any) => {
+    // PDF Reader 탭으로 이동하고 해당 문서를 선택
+    setActiveTab('reader')
+    // 추가적으로 선택된 문서 정보를 PDFReader에 전달할 수 있음
+  }
+
+  const handleDocumentDelete = async (document: any, event: React.MouseEvent) => {
+    event.stopPropagation() // 문서 선택 이벤트 방지
+    
+    if (!user) return
+    
+    const confirmDelete = window.confirm(`"${document.title}"을(를) 삭제하시겠습니까?\n관련된 모든 하이라이트도 함께 삭제됩니다.`)
+    
+    if (!confirmDelete) return
+    
+    try {
+      console.log('문서 삭제 시작:', document.id)
+      
+      const response = await fetch(`/api/documents?id=${document.id}&user_id=${user.id}`, {
+        method: 'DELETE'
+      })
+      
+      const result = await response.json()
+      
+      if (response.ok) {
+        console.log('문서 삭제 성공')
+        // 문서 목록 새로고침
+        await loadUserData()
+        alert('문서가 성공적으로 삭제되었습니다.')
+      } else {
+        console.error('문서 삭제 실패:', result.error)
+        alert('문서 삭제에 실패했습니다: ' + result.error)
+      }
+    } catch (error) {
+      console.error('문서 삭제 중 오류:', error)
+      alert('문서 삭제 중 오류가 발생했습니다.')
     }
   }
 
@@ -280,25 +355,30 @@ export default function Dashboard() {
               </label>
             </div>
 
-            {/* Uploaded PDFs */}
-            {uploadedPDFs.length > 0 && (
+            {/* 업로드된 문서들 */}
+            {documents.length > 0 && (
               <div className="pt-2">
                 <h3 className="px-4 text-sm font-medium text-gray-900 mb-2">
-                  업로드된 문서
+                  내 문서들
                 </h3>
                 <div className="space-y-1">
-                  {uploadedPDFs.map((pdf) => (
+                  {documents.slice(0, 5).map((doc) => (
                     <div
-                      key={pdf.id}
+                      key={doc.id}
                       className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer truncate"
                       onClick={() => setActiveTab('reader')}
                     >
                       <div className="flex items-center space-x-2">
                         <FileText size={16} />
-                        <span className="truncate">{pdf.name}</span>
+                        <span className="truncate">{doc.title}</span>
                       </div>
                     </div>
                   ))}
+                  {documents.length > 5 && (
+                    <div className="px-4 py-2 text-xs text-gray-500">
+                      +{documents.length - 5}개 더
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -312,9 +392,17 @@ export default function Dashboard() {
                 documents={documents}
                 highlights={highlights}
                 learningProgress={learningProgress}
+                onDocumentSelect={handleDocumentSelect}
+                onDocumentDelete={handleDocumentDelete}
+                user={user}
               />
             )}
-            {activeTab === 'reader' && <PDFReader pdfs={uploadedPDFs} />}
+            {activeTab === 'reader' && <PDFReader pdfs={documents.map(doc => ({
+              id: doc.id,
+              name: doc.title,
+              file: null, // 서버에서 로드할 파일
+              document: doc
+            }))} />}
             {activeTab === 'concept' && <ConceptMap />}
             {activeTab === 'recommendations' && <CourseRecommendation />}
           </div>
@@ -324,11 +412,14 @@ export default function Dashboard() {
   )
 }
 
-function DashboardContent({ pdfs, documents, highlights, learningProgress }: { 
+function DashboardContent({ pdfs, documents, highlights, learningProgress, onDocumentSelect, onDocumentDelete, user }: { 
   pdfs: Array<{id: string, name: string, file: File}>
   documents: any[]
   highlights: any[]
   learningProgress: any[]
+  onDocumentSelect: (document: any) => void
+  onDocumentDelete?: (document: any, event: React.MouseEvent) => Promise<void>
+  user: any
 }) {
   return (
     <div className="space-y-6">
@@ -338,12 +429,12 @@ function DashboardContent({ pdfs, documents, highlights, learningProgress }: {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">업로드된 문서</p>
-              <p className="text-2xl font-bold text-gray-900">{documents.length + pdfs.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{documents.length}</p>
             </div>
             <FileText className="h-8 w-8 text-blue-600" />
           </div>
@@ -359,18 +450,51 @@ function DashboardContent({ pdfs, documents, highlights, learningProgress }: {
           </div>
         </div>
         
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">학습 진행률</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {learningProgress.length > 0 
-                  ? Math.round(learningProgress.reduce((acc, p) => acc + p.progress_percentage, 0) / learningProgress.length)
-                  : 0}%
-              </p>
+      </div>
+
+      {/* Document List */}
+      <div className="bg-white rounded-lg shadow-sm border">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">문서 목록</h3>
+          {documents.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">
+              PDF 문서를 업로드하여 AI 학습을 시작하세요!
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Database documents */}
+              {documents.map((doc) => (
+                <div 
+                  key={doc.id} 
+                  className="p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer hover:bg-gray-50 relative group"
+                  onClick={() => onDocumentSelect(doc)}
+                >
+                  <div className="flex items-start space-x-3">
+                    <FileText size={20} className="text-blue-600 mt-1" />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-medium text-gray-900 truncate">
+                        {doc.title}
+                      </h4>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {new Date(doc.created_at).toLocaleDateString('ko-KR')}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {(doc.file_size / 1024 / 1024).toFixed(1)} MB
+                      </p>
+                    </div>
+                    {/* 삭제 버튼 */}
+                    <button
+                      onClick={(e) => onDocumentDelete && onDocumentDelete(doc, e)}
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-red-100 text-red-600 hover:text-red-800 transition-all"
+                      title="문서 삭제"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-            <Target className="h-8 w-8 text-green-600" />
-          </div>
+          )}
         </div>
       </div>
 
@@ -378,16 +502,21 @@ function DashboardContent({ pdfs, documents, highlights, learningProgress }: {
       <div className="bg-white rounded-lg shadow-sm border">
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">최근 활동</h3>
-          {pdfs.length === 0 ? (
+          {documents.length === 0 ? (
             <p className="text-gray-500 text-center py-8">
-              PDF 문서를 업로드하여 AI 학습을 시작하세요!
+              아직 활동이 없습니다.
             </p>
           ) : (
             <div className="space-y-3">
-              {pdfs.slice(0, 5).map((pdf) => (
-                <div key={pdf.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded">
+              {documents.slice(0, 5).map((doc) => (
+                <div key={doc.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded">
                   <FileText size={16} className="text-gray-600" />
-                  <span className="text-sm text-gray-900">{pdf.name} 업로드됨</span>
+                  <span className="text-sm text-gray-900">
+                    {doc.title} 업로드됨
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {new Date(doc.created_at).toLocaleString('ko-KR')}
+                  </span>
                 </div>
               ))}
             </div>
