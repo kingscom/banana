@@ -43,11 +43,15 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
       try {
+        // 페이지 로드 시 로그아웃 플래그 초기화
+        setIsSigningOut(false)
+        
         const { data: { session }, error } = await supabase.auth.getSession()
         if (error) {
           console.error('Error getting session:', error)
@@ -85,8 +89,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         setUser(session?.user ?? null)
         setLoading(false)
 
-        // 로그인 시 사용자 프로필 로드
-        if (event === 'SIGNED_IN' && session?.user) {
+        // 로그인 시 사용자 프로필 로드 (단, 로그아웃 중이 아닐 때만)
+        if (event === 'SIGNED_IN' && session?.user && !isSigningOut) {
           console.log('🚀 Loading profile for signed in user...')
           await loadUserProfile(session.user.id)
         } else if (event === 'SIGNED_OUT' || (!session && user)) {
@@ -94,6 +98,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           setUserProfile(null)
           setNeedsProfileSetup(false)
           setLoading(false)
+          
+          // 로그아웃 플래그 초기화
+          setIsSigningOut(false)
           
           // 로그아웃 시에만 리디렉트 (현재 대시보드에 있을 때)
           if (window.location.pathname.startsWith('/dashboard')) {
@@ -292,20 +299,31 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const signOut = async () => {
     console.log('🚪 Starting sign out process...')
     setLoading(true)
+    setIsSigningOut(true)
     
-    try {
-      // Supabase 로그아웃 먼저 시도
-      console.log('📡 Attempting Supabase sign out...')
-      await supabase.auth.signOut()
-      console.log('✅ Supabase sign out completed')
-      
-    } catch (error) {
-      console.warn('⚠️ Supabase signOut error:', error)
-      // 에러가 있어도 계속 진행
-    }
+    // try {
+    //   // Supabase 세션 완전히 정리
+    //   await supabase.auth.signOut()
+    //   console.log('✅ Supabase session cleared')
+    // } catch (error) {
+    //   console.warn('⚠️ Supabase signOut error:', error)
+    // }
     
-    // 로컬 상태 정리는 auth state change에서 처리됨
-    console.log('🔄 Waiting for auth state change...')
+    // 로컬 스토리지 정리
+    localStorage.clear()
+    sessionStorage.clear()
+    
+    // 로컬 상태 정리
+    setUser(null)
+    setUserProfile(null)
+    setNeedsProfileSetup(false)
+    
+    console.log('✅ Sign out completed - all state cleared')
+    
+    setLoading(false)
+    
+    // 홈으로 리다이렉트
+    window.location.replace('/')
   }
 
   return (
