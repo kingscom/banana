@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import { createClient } from '@/lib/supabase'
 import { useAuth } from './AuthProvider'
+import { FileText } from 'lucide-react'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 
@@ -441,44 +442,27 @@ export default function PDFReader({ pdfs }: PDFReaderProps) {
           {selectedPDF ? (
             <div className="max-w-4xl mx-auto">
               <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
-                {/* 문서 선택 드롭다운 */}
+                {/* 문서 제목 및 컨트롤 */}
                 <div className="flex justify-between items-center mb-4 border-b pb-4">
-                  <select
-                    value={selectedPDFId || ''}
-                    onChange={async (e) => {
-                      const pdfId = e.target.value
-                      const pdf = pdfs.find(p => p.id === pdfId)
-                      if (pdf) {
-                        // 서버에 저장된 파일인경우 로드
-                        if (pdf.document && pdf.document.file_path) {
-                          const serverFile = await loadFileFromServer(pdf.document)
-                          if (serverFile) {
-                            setSelectedPDF(serverFile)
-                            setSelectedPDFId(pdf.id)
-                          } else {
-                            alert('파일을 로드할 수 없습니다.')
-                          }
-                        } else {
-                          // 로컬 파일인 경우
-                          setSelectedPDF(pdf.file)
-                          setSelectedPDFId(pdf.id)
-                        }
-                      }
-                    }}
-                    className="px-3 py-2 border rounded-md text-sm font-medium"
-                  >
-                    {pdfs.map((pdf) => (
-                      <option key={pdf.id} value={pdf.id}>
-                        {pdf.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-blue-50 rounded-lg">
+                      <FileText className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900">
+                        {pdfs[0]?.name || '문서'}
+                      </h2>
+                      <p className="text-sm text-gray-500">
+                        {pdfs[0]?.document && new Date(pdfs[0].document.created_at).toLocaleDateString('ko-KR')}
+                      </p>
+                    </div>
+                  </div>
                   <button
                     onClick={() => setShowHighlights(!showHighlights)}
-                    className={`px-3 py-2 rounded-md text-sm font-medium ${
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                       showHighlights 
-                        ? 'bg-yellow-500 text-white' 
-                        : 'bg-gray-200 text-gray-700'
+                        ? 'bg-yellow-500 text-white hover:bg-yellow-600' 
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                     }`}
                   >
                     하이라이트 {showHighlights ? '숨기기' : '보기'}

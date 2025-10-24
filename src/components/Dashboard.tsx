@@ -27,6 +27,7 @@ export default function Dashboard() {
   const [documents, setDocuments] = useState<any[]>([])
   const [highlights, setHighlights] = useState<any[]>([])
   const [learningProgress, setLearningProgress] = useState<any[]>([])
+  const [selectedDocument, setSelectedDocument] = useState<any>(null)
   const [showProfileSetup, setShowProfileSetup] = useState(false)
   const [showUserProfileModal, setShowUserProfileModal] = useState(false)
 
@@ -202,9 +203,11 @@ export default function Dashboard() {
   }
 
   const handleDocumentSelect = (document: any) => {
-    // PDF Reader 탭으로 이동하고 해당 문서를 선택
+    // 선택된 문서 설정
+    setSelectedDocument(document)
+    console.log('선택된 문서:', document.title)
+    // PDF Reader 탭으로 이동
     setActiveTab('reader')
-    // 추가적으로 선택된 문서 정보를 PDFReader에 전달할 수 있음
   }
 
   const handleDocumentDelete = async (document: any, event: React.MouseEvent) => {
@@ -263,7 +266,7 @@ export default function Dashboard() {
       
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto px-4 sm:px-6 lg:px-8" style={{ maxWidth: '1440px' }}>
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
               <h1 className="text-xl font-semibold text-gray-900">
@@ -366,7 +369,7 @@ export default function Dashboard() {
                     <div
                       key={doc.id}
                       className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer truncate"
-                      onClick={() => setActiveTab('reader')}
+                      onClick={() => handleDocumentSelect(doc)}
                     >
                       <div className="flex items-center space-x-2">
                         <FileText size={16} />
@@ -397,12 +400,21 @@ export default function Dashboard() {
                 user={user}
               />
             )}
-            {activeTab === 'reader' && <PDFReader pdfs={documents.map(doc => ({
-              id: doc.id,
-              name: doc.title,
+            {activeTab === 'reader' && selectedDocument && <PDFReader pdfs={[{
+              id: selectedDocument.id,
+              name: selectedDocument.title,
               file: null, // 서버에서 로드할 파일
-              document: doc
-            }))} />}
+              document: selectedDocument
+            }]} />}
+            {activeTab === 'reader' && !selectedDocument && (
+              <div className="flex items-center justify-center h-96">
+                <div className="text-center">
+                  <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">문서를 선택하세요</h3>
+                  <p className="text-gray-500">대시보드에서 읽고 싶은 문서를 클릭하세요.</p>
+                </div>
+              </div>
+            )}
             {activeTab === 'concept' && <ConceptMap />}
             {activeTab === 'recommendations' && <CourseRecommendation />}
           </div>
@@ -429,7 +441,7 @@ function DashboardContent({ pdfs, documents, highlights, learningProgress, onDoc
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center justify-between">
             <div>
@@ -447,6 +459,20 @@ function DashboardContent({ pdfs, documents, highlights, learningProgress, onDoc
               <p className="text-2xl font-bold text-gray-900">{highlights.length}</p>
             </div>
             <Lightbulb className="h-8 w-8 text-yellow-600" />
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">총 업로드 용량</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {documents.length > 0 
+                  ? (documents.reduce((acc, doc) => acc + doc.file_size, 0) / 1024 / 1024).toFixed(1) + ' MB'
+                  : '0 MB'}
+              </p>
+            </div>
+            <BarChart3 className="h-8 w-8 text-purple-600" />
           </div>
         </div>
         
