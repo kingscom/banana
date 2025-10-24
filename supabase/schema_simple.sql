@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Create custom types
 CREATE TYPE user_role AS ENUM ('student', 'instructor', 'admin');
 
--- Documents table (간소화)
+-- Documents table (간소화 + 공유 기능)
 CREATE TABLE IF NOT EXISTS documents (
   id TEXT PRIMARY KEY,  -- UUID 대신 TEXT 사용
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -51,15 +51,17 @@ CREATE TABLE IF NOT EXISTS documents (
   file_size INTEGER NOT NULL,
   file_type TEXT NOT NULL DEFAULT 'application/pdf',
   file_path TEXT, -- 서버에 저장된 파일 경로
+  original_document_id TEXT, -- 원본 문서 ID (공유된 문서인 경우)
+  shared_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL, -- 공유한 사용자 ID
+  is_shared BOOLEAN DEFAULT FALSE, -- 공유된 문서 여부
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Highlights table (외래 키 제약조건 완화)
+-- Highlights table (외래 키 제약조건 완화, user_id 제거)
 CREATE TABLE IF NOT EXISTS highlights (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   document_id TEXT NOT NULL,  -- 외래 키 제약조건 제거
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   page_number INTEGER NOT NULL,
   selected_text TEXT NOT NULL,
   note TEXT DEFAULT '',
@@ -98,8 +100,10 @@ CREATE TABLE IF NOT EXISTS dashboards (
 
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents(user_id);
+CREATE INDEX IF NOT EXISTS idx_documents_original_id ON documents(original_document_id);
+CREATE INDEX IF NOT EXISTS idx_documents_shared_by ON documents(shared_by_user_id);
+CREATE INDEX IF NOT EXISTS idx_documents_is_shared ON documents(is_shared);
 CREATE INDEX IF NOT EXISTS idx_highlights_document_id ON highlights(document_id);
-CREATE INDEX IF NOT EXISTS idx_highlights_user_id ON highlights(user_id);
 CREATE INDEX IF NOT EXISTS idx_highlights_page_number ON highlights(page_number);
 
 -- Row Level Security (RLS) policies - DISABLED for development

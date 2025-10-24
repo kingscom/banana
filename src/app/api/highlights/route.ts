@@ -41,10 +41,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 하이라이트 저장 (RLS 비활성화됨)
+    // 문서 소유자 확인
+    const { data: document, error: docError } = await supabase
+      .from('documents')
+      .select('user_id')
+      .eq('id', document_id)
+      .single()
+
+    if (docError || !document) {
+      return NextResponse.json(
+        { error: '문서를 찾을 수 없습니다.' },
+        { status: 404 }
+      )
+    }
+
+    if (document.user_id !== user_id) {
+      return NextResponse.json(
+        { error: '해당 문서에 하이라이트를 추가할 권한이 없습니다.' },
+        { status: 403 }
+      )
+    }
+
+    // 하이라이트 저장 (user_id 제거)
     const insertData = {
       document_id,
-      user_id,
       page_number,
       selected_text,
       note: note || '',
@@ -103,11 +123,31 @@ export async function GET(request: NextRequest) {
 
     console.log('하이라이트 조회:', { document_id, user_id })
 
+    // 문서 소유자 확인
+    const { data: document, error: docError } = await supabase
+      .from('documents')
+      .select('user_id')
+      .eq('id', document_id)
+      .single()
+
+    if (docError || !document) {
+      return NextResponse.json(
+        { error: '문서를 찾을 수 없습니다.' },
+        { status: 404 }
+      )
+    }
+
+    if (document.user_id !== user_id) {
+      return NextResponse.json(
+        { error: '해당 문서의 하이라이트를 조회할 권한이 없습니다.' },
+        { status: 403 }
+      )
+    }
+
     const { data, error } = await supabase
       .from('highlights')
       .select('*')
       .eq('document_id', document_id)
-      .eq('user_id', user_id)
       .order('created_at', { ascending: true })
 
     if (error) {
@@ -149,11 +189,44 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
+    // 하이라이트와 연결된 문서의 소유자 확인
+    const { data: highlight, error: hlError } = await supabase
+      .from('highlights')
+      .select('document_id')
+      .eq('id', highlight_id)
+      .single()
+
+    if (hlError || !highlight) {
+      return NextResponse.json(
+        { error: '하이라이트를 찾을 수 없습니다.' },
+        { status: 404 }
+      )
+    }
+
+    const { data: document, error: docError } = await supabase
+      .from('documents')
+      .select('user_id')
+      .eq('id', highlight.document_id)
+      .single()
+
+    if (docError || !document) {
+      return NextResponse.json(
+        { error: '문서를 찾을 수 없습니다.' },
+        { status: 404 }
+      )
+    }
+
+    if (document.user_id !== user_id) {
+      return NextResponse.json(
+        { error: '해당 하이라이트를 삭제할 권한이 없습니다.' },
+        { status: 403 }
+      )
+    }
+
     const { error } = await supabase
       .from('highlights')
       .delete()
       .eq('id', highlight_id)
-      .eq('user_id', user_id)
 
     if (error) {
       console.error('하이라이트 삭제 오류:', error)
