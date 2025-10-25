@@ -25,36 +25,33 @@ export default function ProfileSetup({ onComplete }: ProfileSetupProps) {
     try {
       if (!user) throw new Error('사용자 정보가 없습니다.')
 
-      console.log('🔄 Updating user profile for:', user.id)
-      console.log('📝 Form data:', formData)
-
-      // 사용자 프로필 upsert (생성 또는 업데이트)
-      const { data, error: updateError } = await supabase
-        .from('user_profiles')
-        .upsert({
-          id: user.id,
-          email: user.email,
-          display_name: formData.displayName,
-          department: formData.department,
-          is_profile_completed: true,
-          provider: 'google',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'id'
-        })
-        .select()
-
-      if (updateError) {
-        console.error('❌ Profile update error:', updateError)
-        throw updateError
+      // 통합된 upsert 로직 - UserProfileModal과 동일
+      const profileData: any = {
+        id: user.id,
+        email: user.email || '',
+        display_name: formData.displayName.trim(),
+        department: formData.department.trim(),
+        is_profile_completed: true,
+        provider: 'google',
+        avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }
 
-      console.log('✅ Profile updated successfully:', data)
+      const { error } = await supabase
+        .from('user_profiles')
+        .upsert(profileData, {
+          onConflict: 'id'
+        })
+
+      if (error) {
+        throw error
+      }
+
       onComplete()
-    } catch (error) {
-      console.error('💥 프로필 설정 오류:', error)
-      setError(error instanceof Error ? error.message : '프로필 설정 중 오류가 발생했습니다.')
+    } catch (error: any) {
+      console.error('프로필 설정 오류:', error)
+      setError(`프로필 설정 실패: ${error.message}`)
     } finally {
       setLoading(false)
     }

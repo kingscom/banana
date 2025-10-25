@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from './AuthProvider'
 import { X, User, Building } from 'lucide-react'
@@ -14,8 +14,8 @@ interface UserProfileModalProps {
 export default function UserProfileModal({ isOpen, onClose, onUpdate }: UserProfileModalProps) {
   const { user, userProfile } = useAuth()
   const [formData, setFormData] = useState({
-    displayName: userProfile?.display_name || user?.user_metadata?.name || user?.email || '',
-    department: userProfile?.department || ''
+    displayName: '',
+    department: ''
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -23,6 +23,27 @@ export default function UserProfileModal({ isOpen, onClose, onUpdate }: UserProf
   
   // 최초 프로필 설정인지 확인
   const isFirstTimeSetup = !userProfile?.display_name || !userProfile?.department
+
+  // 모달이 열릴 때마다 최신 프로필 데이터로 폼 업데이트
+  useEffect(() => {
+    if (isOpen && userProfile) {
+      setFormData({
+        displayName: userProfile.display_name || user?.user_metadata?.name || user?.email || '',
+        department: userProfile.department || ''
+      })
+      // 에러와 성공 메시지 초기화
+      setError('')
+      setSuccess('')
+    } else if (isOpen && user && !userProfile) {
+      // userProfile이 아직 로드되지 않은 경우 user 메타데이터 사용
+      setFormData({
+        displayName: user.user_metadata?.name || user.email || '',
+        department: ''
+      })
+      setError('')
+      setSuccess('')
+    }
+  }, [isOpen, userProfile, user])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,42 +69,34 @@ export default function UserProfileModal({ isOpen, onClose, onUpdate }: UserProf
     setSuccess('')
 
     try {
-      if (isFirstTimeSetup) {
-        // 최초 프로필 생성
-        const { error: insertError } = await supabase
-          .from('user_profiles')
-          .insert([{
-            id: user.id,
-            email: user.email || '',
-            display_name: formData.displayName.trim(),
-            department: formData.department.trim(),
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }])
-          
-        if (insertError) {
-          throw insertError
-        }
-        
-        setSuccess('프로필이 생성되었습니다!')
-      } else {
-        // 기존 프로필 업데이트 (upsert 사용)
-        const { error: upsertError } = await supabase
-          .from('user_profiles')
-          .upsert({
-            id: user.id,
-            email: user.email || '',
-            display_name: formData.displayName.trim(),
-            department: formData.department.trim(),
-            updated_at: new Date().toISOString()
-          })
-          
-        if (upsertError) {
-          throw upsertError
-        }
-        
-        setSuccess('프로필이 업데이트되었습니다!')
+      // 통합된 upsert 로직 - 생성과 업데이트를 한 번에 처리
+      const profileData: any = {
+        id: user.id,
+        email: user.email || '',
+        display_name: formData.displayName.trim(),
+        department: formData.department.trim(),
+        is_profile_completed: true,
+        provider: 'google',
+        avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+        updated_at: new Date().toISOString()
       }
+
+      // 최초 생성인 경우 created_at도 추가
+      if (isFirstTimeSetup) {
+        profileData.created_at = new Date().toISOString()
+      }
+
+      const { error } = await supabase
+        .from('user_profiles')
+        .upsert(profileData, {
+          onConflict: 'id'
+        })
+        
+      if (error) {
+        throw error
+      }
+      
+      setSuccess(isFirstTimeSetup ? '프로필이 생성되었습니다!' : '프로필이 업데이트되었습니다!')
       
       // 잠시 후 모달 닫기
       setTimeout(() => {
@@ -92,7 +105,8 @@ export default function UserProfileModal({ isOpen, onClose, onUpdate }: UserProf
       }, 1000)
 
     } catch (error: any) {
-      setError(`${isFirstTimeSetup ? '프로필 생성' : '프로필 업데이트'} 실패: ${error.message}`)
+      console.error('프로필 처리 오류:', error)
+      setError(`프로필 ${isFirstTimeSetup ? '생성' : '업데이트'} 실패: ${error.message}`)
     } finally {
       setLoading(false)
     }

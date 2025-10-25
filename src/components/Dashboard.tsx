@@ -38,6 +38,8 @@ export default function Dashboard() {
   const [selectedDocument, setSelectedDocument] = useState<any>(null)
   const [showProfileSetup, setShowProfileSetup] = useState(false)
   const [showUserProfileModal, setShowUserProfileModal] = useState(false)
+
+
   const [deleteModalDocument, setDeleteModalDocument] = useState<any>(null)
   const [shareModalDocument, setShareModalDocument] = useState<any>(null)
   const [shareTargetEmail, setShareTargetEmail] = useState('')
@@ -700,7 +702,7 @@ export default function Dashboard() {
                   className="text-left hover:bg-amber-100 p-3 rounded-xl transition-colors group"
                 >
                   <div className="text-sm font-semibold library-text text-amber-900 group-hover:text-amber-800">
-                    {userProfile?.display_name || user?.user_metadata?.name || user?.email}
+                    {userProfile?.display_name || '사용자'}
                   </div>
                   {userProfile?.department && (
                     <div className="text-xs library-text opacity-70 group-hover:opacity-80">
