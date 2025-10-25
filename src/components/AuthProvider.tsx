@@ -74,16 +74,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('🔔 Auth event:', event)
-        console.log('📊 Session state:', session ? 'EXISTS' : 'NULL')
-        
-        if (session?.user) {
-          console.log('👤 User info:', {
-            id: session.user.id,
-            email: session.user.email,
-            created_at: session.user.created_at,
-            metadata: session.user.user_metadata
-          })
+        // 중요한 이벤트만 로깅
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+          console.log('� Auth event:', event)
         }
         
         setUser(session?.user ?? null)
@@ -91,10 +84,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
         // 로그인 시 사용자 프로필 로드 (단, 로그아웃 중이 아니고 프로필이 없을 때만)
         if (event === 'SIGNED_IN' && session?.user && !isSigningOut && !userProfile) {
-          console.log('🚀 Loading profile for signed in user...')
           await loadUserProfile(session.user.id)
         } else if (event === 'SIGNED_OUT' || (!session && user)) {
-          console.log('👋 User signed out - clearing all state')
           setUserProfile(null)
           setNeedsProfileSetup(false)
           setLoading(false)
@@ -117,7 +108,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   // 사용자 프로필 로드
   const loadUserProfile = async (userId: string) => {
     try {
-      console.log('🔍 Loading user profile for ID:', userId)
+      // 프로필 로딩 중...
       
       const { data: profile, error } = await supabase
         .from('user_profiles')
@@ -130,7 +121,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         
         // 프로필이 없는 경우 (PGRST116 = no rows returned)
         if (error.code === 'PGRST116') {
-          console.log('🆕 No profile found - creating initial profile')
           setNeedsProfileSetup(true)
           
           // 초기 프로필 생성 시도
@@ -151,7 +141,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             if (createError) {
               console.error('❌ Error creating initial profile:', createError)
             } else {
-              console.log('✅ Initial profile created:', newProfile)
+              // 초기 프로필 생성 완료
               setUserProfile(newProfile)
               
               // Dashboard도 생성되었는지 확인하고 없으면 생성

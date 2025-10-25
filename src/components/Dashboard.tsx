@@ -24,7 +24,8 @@ import {
   CheckCircle,
   X,
   AlertCircle,
-  Hash
+  Hash,
+  ChevronRight
 } from 'lucide-react'
 
 export default function Dashboard() {
@@ -144,7 +145,7 @@ export default function Dashboard() {
       const result = await response.json()
       
       if (response.ok) {
-        console.log('📄 로드된 문서들:', result.data?.length || 0, '개')
+        // 문서 로딩 완료
         setDocuments(result.data || [])
         
         // 문서가 있으면 하이라이트도 로드 (병렬 처리 최적화)
@@ -248,7 +249,7 @@ export default function Dashboard() {
     
     // 선택된 문서 설정
     setSelectedDocument(document)
-    console.log('선택된 문서:', document.title)
+    // 문서 선택됨
     // PDF Reader 탭으로 이동
     setActiveTab('reader')
   }
@@ -649,62 +650,76 @@ export default function Dashboard() {
       )}
       
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 shadow-sm">
         <div className="mx-auto px-4 sm:px-6 lg:px-8" style={{ maxWidth: '1440px' }}>
-          <div className="flex justify-between items-center h-16">
+          <div className="flex justify-between items-center h-20">
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-4">
                 {/* 로고 */}
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
-                  <BookOpen className="w-6 h-6 text-white" />
+                <div className="relative">
+                  <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <BookOpen className="w-8 h-8 text-white" />
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center">
+                    <Target className="w-2.5 h-2.5 text-white" />
+                  </div>
                 </div>
-                <h1 className="text-xl font-semibold text-gray-900">
-                  나만의 AI 스터디룸
-                </h1>
+                <div>
+                  <h1 className="library-title text-2xl text-amber-900">
+                    나만의 AI 스터디룸
+                  </h1>
+                  <p className="library-text text-xs opacity-70">
+                    AI와 함께하는 개인 지식 도서관
+                  </p>
+                </div>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-4">
                 {/* User Avatar */}
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-semibold">
-                  {userProfile?.avatar_url ? (
-                    <img
-                      src={userProfile.avatar_url}
-                      alt="Profile"
-                      className="w-10 h-10 rounded-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-sm">
-                      {(userProfile?.display_name || user?.user_metadata?.name || user?.email || '사용자')[0].toUpperCase()}
-                    </span>
-                  )}
+                <div className="relative">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white font-semibold shadow-lg">
+                    {userProfile?.avatar_url ? (
+                      <img
+                        src={userProfile.avatar_url}
+                        alt="Profile"
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-lg">
+                        {(userProfile?.display_name || user?.user_metadata?.name || user?.email || '사용자')[0].toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
                 </div>
 
                 {/* User Info - Clickable */}
                 <button
                   onClick={() => setShowUserProfileModal(true)}
-                  className="text-right hover:bg-gray-100 p-2 rounded-lg transition-colors group"
+                  className="text-left hover:bg-amber-100 p-3 rounded-xl transition-colors group"
                 >
-                  <div className="text-sm font-medium text-gray-900 group-hover:text-blue-600">
+                  <div className="text-sm font-semibold library-text text-amber-900 group-hover:text-amber-800">
                     {userProfile?.display_name || user?.user_metadata?.name || user?.email}
                   </div>
                   {userProfile?.department && (
-                    <div className="text-xs text-gray-500 group-hover:text-blue-500">
+                    <div className="text-xs library-text opacity-70 group-hover:opacity-80">
                       {userProfile.department}
                     </div>
                   )}
-                  <div className="text-xs text-gray-400 group-hover:text-blue-400 mt-1">
-                    프로필 수정
+                  <div className="text-xs library-text opacity-50 group-hover:opacity-70 mt-1 flex items-center space-x-1">
+                    <Settings className="w-3 h-3" />
+                    <span>프로필 설정</span>
                   </div>
                 </button>
               </div>
               <button
                 onClick={handleLogout}
                 disabled={loading}
-                className="flex items-center space-x-1 text-gray-600 hover:text-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center space-x-2 library-text text-amber-800 hover:text-amber-900 hover:bg-amber-100 px-4 py-2 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <LogOut size={18} />
-                <span>{loading ? '로그아웃 중...' : '로그아웃'}</span>
+                <span className="font-medium">{loading ? '로그아웃 중...' : '로그아웃'}</span>
               </button>
             </div>
           </div>
@@ -712,60 +727,93 @@ export default function Dashboard() {
       </header>
 
       <div className="mx-auto px-4 sm:px-6 lg:px-8 py-6" style={{ maxWidth: '1600px' }}>
-        <div className="flex space-x-6">
+        <div className="flex space-x-8">
           {/* Sidebar */}
-          <div className="w-64 space-y-2">
-            {tabs.map((tab) => {
-              const Icon = tab.icon
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                    activeTab === tab.id
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <Icon size={20} />
-                  <span>{tab.name}</span>
-                </button>
-              )
-            })}
-            
-            {/* PDF Upload */}
-            <div className="pt-4 border-t">
-              <label className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 cursor-pointer transition-colors">
-                <Upload size={20} />
-                <span>PDF 업로드</span>
-                <input
-                  type="file"
-                  accept=".pdf"
-                  multiple
-                  onChange={handlePDFUpload}
-                  className="hidden"
-                />
-              </label>
+          <div className="w-72 space-y-3">
+            <div className="library-card rounded-xl p-6 bg-white shadow-md">
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-orange-100 rounded-lg flex items-center justify-center">
+                  <Hash className="w-5 h-5 text-amber-700" />
+                </div>
+                <div>
+                  <h3 className="library-title text-lg text-amber-900">탐색 메뉴</h3>
+                  <p className="library-text text-xs opacity-70">지식 여정을 시작하세요</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl text-left transition-all duration-200 ${
+                        activeTab === tab.id
+                          ? 'bg-gradient-to-r from-amber-100 to-orange-100 text-amber-900 shadow-sm'
+                          : 'library-text hover:bg-amber-50 hover:text-amber-800'
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                        activeTab === tab.id
+                          ? 'bg-white shadow-sm'
+                          : 'bg-amber-50'
+                      }`}>
+                        <Icon size={18} className={activeTab === tab.id ? 'text-amber-700' : 'text-amber-600'} />
+                      </div>
+                      <span className="font-medium">{tab.name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+               {/* PDF Upload */}
+            <div className="library-card rounded-xl p-6 bg-gradient-to-br from-white to-amber-50 shadow-md">
+              <div className="text-center">
+                <label className="inline-flex items-center space-x-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white px-6 py-3 rounded-xl cursor-pointer transition-all duration-200 shadow-md hover:shadow-lg font-medium">
+                  <Upload size={18} />
+                  <span>문서 업로드</span>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    multiple
+                    onChange={handlePDFUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
             </div>
+            </div>
+           
 
-            {/* 업로드된 문서들 */}
+            {/* 최근 문서들 */}
             {documents.length > 0 && (
-              <div className="pt-2">
-                <h3 className="px-4 text-sm font-medium text-gray-900 mb-2">
-                  내 문서들
-                </h3>
-                <div className="space-y-1">
-                  {documents.slice(0, 5).map((doc) => (
-                    <div
+              <div className="library-card rounded-xl p-6 bg-white shadow-md">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-8 h-8 bg-gradient-to-br from-amber-100 to-orange-100 rounded-lg flex items-center justify-center">
+                    <FileText className="w-4 h-4 text-amber-700" />
+                  </div>
+                  <div>
+                    <h3 className="library-title text-lg text-amber-900">최근 문서</h3>
+                    <p className="library-text text-xs opacity-70">빠른 접근</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {documents.slice(0, 5).map((doc, index) => (
+                    <button
                       key={doc.id}
-                      className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer truncate"
+                      className="w-full flex items-center space-x-3 px-3 py-3 library-text hover:bg-amber-50 hover:text-amber-800 cursor-pointer rounded-lg transition-all"
                       onClick={() => handleDocumentSelect(doc)}
                     >
-                      <div className="flex items-center space-x-2">
-                        <FileText size={16} />
-                        <span className="truncate">{doc.title}</span>
+                      <div className="w-6 h-6 bg-amber-100 rounded flex items-center justify-center flex-shrink-0">
+                        <FileText size={14} className="text-amber-600" />
                       </div>
-                    </div>
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className="text-sm font-medium truncate">{doc.title}</p>
+                        <p className="text-xs opacity-60">
+                          {new Date(doc.created_at).toLocaleDateString('ko-KR')}
+                        </p>
+                      </div>
+                      <ChevronRight size={14} className="text-amber-400 opacity-60" />
+                    </button>
                   ))}
                   {documents.length > 5 && (
                     <div className="px-4 py-2 text-xs text-gray-500">
@@ -846,118 +894,226 @@ function DashboardContent({ pdfs, documents, highlights, learningProgress, onDoc
   user: any
 }) {
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">대시보드</h2>
-        <p className="text-gray-600">AI 기반 학습 현황을 한눈에 확인하세요</p>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">업로드된 문서</p>
-              <p className="text-2xl font-bold text-gray-900">{documents.length}</p>
+    <div className="space-y-8">
+      <div className="library-card rounded-xl p-8 bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 shadow-lg">
+        <div className="flex items-center space-x-6">
+          <div className="relative">
+            <div className="w-20 h-20 bg-gradient-to-br from-amber-100 to-orange-100 rounded-full flex items-center justify-center shadow-inner">
+              <BookOpen className="w-10 h-10 text-amber-700" />
             </div>
-            <FileText className="h-8 w-8 text-blue-600" />
-          </div>
-        </div>
-        
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">하이라이트</p>
-              <p className="text-2xl font-bold text-gray-900">{highlights.length}</p>
+            <div className="absolute -top-1 -right-1 w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+              <Target className="w-3 h-3 text-white" />
             </div>
-            <Lightbulb className="h-8 w-8 text-yellow-600" />
           </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">총 업로드 용량</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {documents.length > 0 
-                  ? (documents.reduce((acc, doc) => acc + doc.file_size, 0) / 1024 / 1024).toFixed(1) + ' MB'
-                  : '0 MB'}
-              </p>
-            </div>
-            <BarChart3 className="h-8 w-8 text-purple-600" />
-          </div>
-        </div>
-        
-      </div>
-
-      {/* Document List */}
-      <div className="bg-white rounded-lg shadow-sm border">
-        <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">문서 목록</h3>
-          {documents.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              PDF 문서를 업로드하여 AI 학습을 시작하세요!
+          <div>
+            <h2 className="library-title text-4xl mb-3 text-amber-900">대시보드</h2>
+            <p className="library-text text-lg opacity-90 leading-relaxed">
+              📚 AI와 함께하는 개인 학습 공간에 오신 것을 환영합니다
             </p>
+            <p className="library-text text-sm opacity-70 mt-2">
+              지식을 체계적으로 관리하고 깊이있게 탐구하는 스마트한 연구실입니다
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 도서관 현황 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="library-card rounded-xl p-6 bg-white shadow-md hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center space-x-2 mb-2">
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <FileText className="w-4 h-4 text-blue-700" />
+                </div>
+                <p className="library-text text-sm font-semibold text-blue-900">소장 도서</p>
+              </div>
+              <p className="text-3xl font-bold library-title text-blue-800">{documents.length}</p>
+              <p className="text-xs library-text opacity-60 mt-1">개의 문서가 보관중</p>
+            </div>
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-blue-100 rounded-full flex items-center justify-center">
+              <FileText className="w-8 h-8 text-blue-600" />
+            </div>
+          </div>
+        </div>
+        
+        <div className="library-card rounded-xl p-6 bg-white shadow-md hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center space-x-2 mb-2">
+                <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
+                  <Lightbulb className="w-4 h-4 text-yellow-700" />
+                </div>
+                <p className="library-text text-sm font-semibold text-yellow-900">필사 기록</p>
+              </div>
+              <p className="text-3xl font-bold library-title text-yellow-800">{highlights.length}</p>
+              <p className="text-xs library-text opacity-60 mt-1">개의 중요 구절 발견</p>
+            </div>
+            <div className="w-16 h-16 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-full flex items-center justify-center">
+              <Lightbulb className="w-8 h-8 text-yellow-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="library-card rounded-xl p-6 bg-white shadow-md hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center space-x-2 mb-2">
+                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <BarChart3 className="w-4 h-4 text-purple-700" />
+                </div>
+                <p className="library-text text-sm font-semibold text-purple-900">보관 용량</p>
+              </div>
+              <p className="text-3xl font-bold library-title text-purple-800">
+                {documents.length > 0 
+                  ? (documents.reduce((acc, doc) => acc + doc.file_size, 0) / 1024 / 1024).toFixed(1)
+                  : '0'}
+              </p>
+              <p className="text-xs library-text opacity-60 mt-1">MB의 지식 저장소</p>
+            </div>
+            <div className="w-16 h-16 bg-gradient-to-br from-purple-50 to-purple-100 rounded-full flex items-center justify-center">
+              <BarChart3 className="w-8 h-8 text-purple-600" />
+            </div>
+          </div>
+        </div>
+        
+      </div>
+
+      {/* 서적 컬렉션 */}
+      <div className="library-card rounded-xl bg-white shadow-md">
+        <div className="p-8">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-amber-100 to-orange-100 rounded-lg flex items-center justify-center shadow-inner">
+                <BookOpen className="w-6 h-6 text-amber-700" />
+              </div>
+              <div>
+                <h3 className="library-title text-2xl text-amber-900">서적 컬렉션</h3>
+                <p className="library-text text-sm opacity-70">나만의 디지털 서재</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm font-medium text-amber-800">{documents.length}권 소장</div>
+              <div className="text-xs text-amber-600 opacity-70">체계적 관리</div>
+            </div>
+          </div>
+          {documents.length === 0 ? (
+            <div className="text-center py-20">
+              <div className="relative mb-8">
+                <div className="w-28 h-28 bg-gradient-to-br from-amber-100 to-orange-100 rounded-full flex items-center justify-center mx-auto shadow-lg">
+                  <BookOpen className="w-14 h-14 text-amber-700" />
+                </div>
+                <div className="absolute -top-2 -right-2 w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center">
+                  <Target className="w-5 h-5 text-white" />
+                </div>
+              </div>
+              <h4 className="library-title text-3xl text-amber-900 mb-4">텅 빈 서재를 채워보세요</h4>
+              <p className="library-text text-lg opacity-80 leading-relaxed mb-6">
+                📖 첫 번째 PDF 문서를 업로드하여<br/>
+                개인 맞춤형 지식 도서관의 여정을 시작해보세요<br/>
+              </p>
+              <p className="library-text text-sm opacity-60">
+                AI가 여러분의 학습을 도와드립니다
+              </p>
+              <div className="mt-6 flex items-center justify-center space-x-2">
+                <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
+                <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse delay-100"></div>
+                <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse delay-200"></div>
+              </div>
+            </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Database documents */}
-              {documents.map((doc) => (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {/* Book Collection */}
+              {documents.map((doc, index) => (
                 <div 
                   key={doc.id} 
-                  className="p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer hover:bg-gray-50 relative group"
-                  onClick={() => onDocumentSelect(doc)}
+                  className="group cursor-pointer"
+                  onClick={(e) => {
+                    // 액션 버튼 영역 클릭이 아닐 때만 문서 선택
+                    const target = e.target as HTMLElement
+                    if (!target.closest('.action-buttons')) {
+                      onDocumentSelect(doc)
+                    }
+                  }}
                 >
-                  <div className="flex items-start space-x-3">
-                    <div className="flex items-center space-x-2">
-                      <FileText size={20} className="text-blue-600 mt-1" />
-                      {/* 공유됨 표시 */}
-                      {doc.is_shared && (
-                        <div className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full flex items-center space-x-1">
-                          <Users size={12} />
-                          <span>공유됨</span>
+                  {/* Book Cover with subtle color */}
+                  <div className="relative transform transition-all duration-200 hover:scale-105 hover:-translate-y-1">
+                    <div className={`h-48 w-full rounded-lg shadow-md hover:shadow-xl relative overflow-hidden border-l-4 
+                      ${index % 6 === 0 ? 'bg-red-50 border-l-red-400' :
+                        index % 6 === 1 ? 'bg-blue-50 border-l-blue-400' :
+                        index % 6 === 2 ? 'bg-green-50 border-l-green-400' :
+                        index % 6 === 3 ? 'bg-purple-50 border-l-purple-400' :
+                        index % 6 === 4 ? 'bg-orange-50 border-l-orange-400' :
+                        'bg-teal-50 border-l-teal-400'
+                      }
+                    `}>
+                      {/* Simple book spine effect */}
+                      <div className="absolute top-0 left-0 w-3 h-full bg-gradient-to-r from-black/5 to-transparent"></div>
+                      
+                      {/* Book content */}
+                      <div className="p-4 pl-6 h-full flex flex-col justify-between text-gray-800 relative">
+                        <div>
+                          {/* Action buttons - appear on hover */}
+                          <div className="action-buttons absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-1 pointer-events-auto z-10">
+                            <button
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation()
+                                e.preventDefault()
+                                console.log('공유 버튼 클릭됨:', doc.title)
+                                onDocumentShare?.(doc, e)
+                              }}
+                              className="bg-blue-500 hover:bg-blue-600 text-white p-1.5 rounded-full shadow-md transition-colors duration-200 pointer-events-auto z-20 relative"
+                              title="문서 공유"
+                            >
+                              <Share2 size={12} />
+                            </button>
+                            <button
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation()
+                                e.preventDefault()
+                                console.log('삭제 버튼 클릭됨:', doc.title)
+                                onDocumentDelete?.(doc, e)
+                              }}
+                              className="bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-md transition-colors duration-200 pointer-events-auto z-20 relative"
+                              title="문서 삭제"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+
+                          {/* Status indicator */}
+                          {doc.is_shared && (
+                            <div className="absolute top-2 right-2 group-hover:opacity-0 transition-opacity duration-200 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center space-x-1">
+                              <Users size={10} />
+                              <span>공유</span>
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center mb-3">
+                            <FileText size={16} className="text-gray-600" />
+                          </div>
+                          
+                          <h4 className="text-sm font-bold leading-tight line-clamp-3 mb-3 text-gray-900">
+                            {doc.title}
+                          </h4>
                         </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium text-gray-900 truncate">
-                        {doc.title}
-                      </h4>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {new Date(doc.created_at).toLocaleDateString('ko-KR')}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {(doc.file_size / 1024 / 1024).toFixed(1)} MB
-                      </p>
-                      {/* 공유 정보 */}
-                      {doc.is_shared && doc.shared_by_user_id && (
-                        <p className="text-xs text-green-600 mt-1">
-                          다른 사용자가 공유한 문서
-                        </p>
-                      )}
+                        
+                        <div className="space-y-1">
+                          <div className="text-xs text-gray-500 font-medium">
+                            {new Date(doc.created_at).toLocaleDateString('ko-KR')}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {(doc.file_size / 1024 / 1024).toFixed(1)} MB
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Subtle shadow for depth */}
+                      <div className="absolute inset-0 rounded-lg ring-1 ring-inset ring-black/5"></div>
                     </div>
                     
-                    {/* 액션 버튼들 */}
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 flex space-x-1">
-                      {/* 공유 버튼 (자신이 만든 문서만) */}
-                      {!doc.is_shared && onDocumentShare && (
-                        <button
-                          onClick={(e) => onDocumentShare(doc, e)}
-                          className="p-1 rounded-full hover:bg-blue-100 text-blue-600 hover:text-blue-800 transition-all"
-                          title="문서 공유"
-                        >
-                          <Share2 size={16} />
-                        </button>
-                      )}
-                      
-                      {/* 삭제 버튼 */}
-                      <button
-                        onClick={(e) => onDocumentDelete && onDocumentDelete(doc, e)}
-                        className="p-1 rounded-full hover:bg-red-100 text-red-600 hover:text-red-800 transition-all"
-                        title="문서 삭제"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+                    {/* Book base shadow */}
+                    <div className="absolute -bottom-1 left-1 right-1 h-2 bg-black/10 rounded-full blur-sm group-hover:bg-black/20 transition-colors duration-200"></div>
                   </div>
                 </div>
               ))}
@@ -966,25 +1122,54 @@ function DashboardContent({ pdfs, documents, highlights, learningProgress, onDoc
         </div>
       </div>
 
-      {/* Recent Activity */}
-      <div className="bg-white rounded-lg shadow-sm border">
-        <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">최근 활동</h3>
+      {/* 최근 학습 활동 */}
+      <div className="library-card rounded-xl bg-white shadow-md">
+        <div className="p-8">
+          <div className="flex items-center space-x-4 mb-6">
+            <div className="w-12 h-12 bg-gradient-to-br from-amber-100 to-orange-100 rounded-lg flex items-center justify-center shadow-inner">
+              <Hash className="w-6 h-6 text-amber-700" />
+            </div>
+            <div>
+              <h3 className="library-title text-2xl text-amber-900">최근 학습 활동</h3>
+              <p className="library-text text-sm opacity-70">지식 여정의 발자취</p>
+            </div>
+          </div>
           {documents.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              아직 활동이 없습니다.
-            </p>
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FileText className="w-8 h-8 text-amber-600" />
+              </div>
+              <p className="library-text opacity-70 text-lg">
+                첫 번째 문서를 업로드하면<br/>
+                학습 활동 기록이 시작됩니다
+              </p>
+            </div>
           ) : (
-            <div className="space-y-3">
-              {documents.slice(0, 5).map((doc) => (
-                <div key={doc.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded">
-                  <FileText size={16} className="text-gray-600" />
-                  <span className="text-sm text-gray-900">
-                    {doc.title} 업로드됨
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {new Date(doc.created_at).toLocaleString('ko-KR')}
-                  </span>
+            <div className="space-y-4">
+              {documents.slice(0, 5).map((doc, index) => (
+                <div key={doc.id} className="flex items-center space-x-4 p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl hover:shadow-md transition-shadow">
+                  <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
+                    <FileText size={18} className="text-amber-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="library-text font-semibold text-amber-900 truncate">
+                      {doc.title}
+                    </p>
+                    <p className="library-text text-sm opacity-70">
+                      새로운 문서가 도서관에 추가되었습니다
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="library-text text-xs opacity-60">
+                      {new Date(doc.created_at).toLocaleDateString('ko-KR')}
+                    </p>
+                    <p className="library-text text-xs opacity-50">
+                      {new Date(doc.created_at).toLocaleTimeString('ko-KR', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>

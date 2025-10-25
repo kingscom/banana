@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from './AuthProvider'
-import { ExternalLink, Star, Clock, User, BookOpen, Plus, Edit3, Trash2, Search, Filter, X, CheckCircle, AlertTriangle, XCircle, AlertCircle, Hash, FileText } from 'lucide-react'
+import { ExternalLink, Star, Clock, User, BookOpen, Plus, Edit3, Trash2, Search, Filter, X, CheckCircle, AlertTriangle, XCircle, AlertCircle, Hash, FileText, GraduationCap, Award, TrendingUp, ChevronDown } from 'lucide-react'
 
 interface Course {
   id: string
@@ -258,98 +258,115 @@ export default function CourseRecommendation() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">추천 강좌</h2>
-          <p className="text-gray-600">
-            모든 사용자가 공유하는 강의 목록입니다. 누구나 강의를 추가하고 관리할 수 있습니다.
-          </p>
+      <div className="library-card rounded-xl p-6 shadow-lg">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center space-x-4">
+            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center">
+              <GraduationCap className="w-8 h-8 text-amber-600" />
+            </div>
+            <div>
+              <h2 className="library-title text-3xl mb-2">학습 아카데미</h2>
+              <p className="library-text opacity-80">
+                지식의 보물창고에서 새로운 학문을 탐험해보세요.<br/>
+                모든 독서가들이 함께 나누는 귀중한 강의 컬렉션입니다.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center space-x-3 font-semibold"
+          >
+            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+              <Plus size={18} className="text-white" />
+            </div>
+            <span className="text-lg">강의 추가</span>
+          </button>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus size={20} />
-          <span>강의 추가</span>
-        </button>
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-lg border shadow-sm">
+      <div className="library-card p-6 rounded-xl shadow-md">
         <div className="flex flex-wrap gap-4 items-center">
           {/* Search */}
           <div className="flex-1 min-w-60 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-amber-400" size={16} />
             <input
               type="text"
               placeholder="강의명, 강사명, 태그로 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-3 py-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 library-background shadow-sm"
             />
           </div>
 
           {/* Category Filter */}
-          <div>
+          <div className="relative">
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 library-background shadow-sm border border-amber-100 font-medium min-w-32 appearance-none bg-white"
             >
-              <option value="all">모든 카테고리</option>
+              <option value="all">모든 분야</option>
               {allCategories.map(category => (
                 <option key={category} value={category}>{category}</option>
               ))}
             </select>
+            <ChevronDown className="absolute right-3 top-4 w-4 h-4 text-amber-500 pointer-events-none" />
           </div>
 
           {/* Level Filter */}
-          <div>
+          <div className="relative">
             <select
               value={selectedLevel}
               onChange={(e) => setSelectedLevel(e.target.value)}
-              className="px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 library-background shadow-sm border border-amber-100 font-medium min-w-28 appearance-none bg-white"
             >
-              <option value="all">모든 난이도</option>
-              <option value="beginner">초급</option>
-              <option value="intermediate">중급</option>
-              <option value="advanced">고급</option>
+              <option value="all">모든 수준</option>
+              <option value="beginner">기초</option>
+              <option value="intermediate">심화</option>
+              <option value="advanced">전문</option>
             </select>
+            <ChevronDown className="absolute right-3 top-4 w-4 h-4 text-amber-500 pointer-events-none" />
           </div>
 
           {/* Tag Filter */}
-          <div>
+          <div className="relative">
             <select
               value={selectedTag}
               onChange={(e) => setSelectedTag(e.target.value)}
-              className="px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 library-background shadow-sm border border-amber-100 font-medium min-w-32 appearance-none bg-white"
             >
-              <option value="all">모든 태그</option>
+              <option value="all">모든 주제</option>
               {allTags.map(tag => (
                 <option key={tag} value={tag}>{tag}</option>
               ))}
             </select>
+            <ChevronDown className="absolute right-3 top-4 w-4 h-4 text-amber-500 pointer-events-none" />
           </div>
 
           {/* Sort Filter */}
-          <div>
+          <div className="relative">
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 library-background shadow-sm border border-amber-100 font-medium min-w-36 appearance-none bg-white"
             >
-              <option value="created_at">최신순</option>
+              <option value="created_at">최신 등록순</option>
               <option value="title">제목순</option>
-              <option value="category">카테고리순</option>
+              <option value="category">분야별</option>
             </select>
+            <ChevronDown className="absolute right-3 top-4 w-4 h-4 text-amber-500 pointer-events-none" />
           </div>
         </div>
       </div>
 
       {/* Loading */}
       {loading && (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="library-card rounded-xl p-12 shadow-md">
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-amber-200 border-t-amber-500"></div>
+            <p className="library-text">학습 자료를 찾고 있습니다...</p>
+          </div>
         </div>
       )}
 
@@ -357,9 +374,9 @@ export default function CourseRecommendation() {
       {!loading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredCourses.map(course => (
-            <div key={course.id} className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow group">
+            <div key={course.id} className="book-card group cursor-pointer transform hover:scale-105 transition-all duration-300">
               {/* Course Image */}
-              <div className="h-48 bg-gradient-to-br from-blue-500 to-purple-600 rounded-t-lg flex items-center justify-center relative overflow-hidden">
+              <div className="h-48 bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 rounded-t-lg flex items-center justify-center relative overflow-hidden">
                 {course.image_url ? (
                   <img
                     src={course.image_url}
@@ -367,30 +384,34 @@ export default function CourseRecommendation() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="text-white text-center p-4">
-                    <BookOpen className="w-16 h-16 mx-auto mb-2" />
-                    <p className="font-semibold text-sm line-clamp-2">{course.title}</p>
+                  <div className="text-amber-50 text-center p-4">
+                    <BookOpen className="w-16 h-16 mx-auto mb-3 drop-shadow-lg" />
+                    <p className="font-semibold text-sm line-clamp-2 drop-shadow">{course.title}</p>
                   </div>
                 )}
                 
                 {/* Action buttons overlay */}
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
+                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-2">
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation()
                       setEditingCourse(course)
                       setShowEditModal(true)
                     }}
-                    className="p-1 bg-white bg-opacity-80 rounded-full hover:bg-opacity-100 transition-all"
+                    className="p-2 bg-amber-50 bg-opacity-90 rounded-full hover:bg-opacity-100 transition-all shadow-md"
                     title="수정"
                   >
-                    <Edit3 size={14} className="text-gray-600" />
+                    <Edit3 size={16} className="text-amber-700" />
                   </button>
                   <button
-                    onClick={() => handleDelete(course.id)}
-                    className="p-1 bg-white bg-opacity-80 rounded-full hover:bg-opacity-100 transition-all"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDelete(course.id)
+                    }}
+                    className="p-2 bg-red-50 bg-opacity-90 rounded-full hover:bg-opacity-100 transition-all shadow-md"
                     title="삭제"
                   >
-                    <Trash2 size={14} className="text-red-600" />
+                    <Trash2 size={16} className="text-red-600" />
                   </button>
                 </div>
               </div>
@@ -452,9 +473,9 @@ export default function CourseRecommendation() {
                 {/* Action Button */}
                 <button
                   onClick={() => handleCourseClick(course)}
-                  className="w-full bg-blue-600 text-white py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                  className="w-full library-fab py-3 text-sm font-medium flex items-center justify-center space-x-2 group-hover:shadow-lg"
                 >
-                  <span>강의 보기</span>
+                  <span>학습하기</span>
                   <ExternalLink size={16} />
                 </button>
               </div>
@@ -486,19 +507,19 @@ export default function CourseRecommendation() {
 
       {/* Statistics */}
       {!loading && courses.length > 0 && (
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
-            <div>
-              <div className="text-2xl font-bold text-blue-600">{courses.length}</div>
-              <div className="text-sm text-gray-600">총 강의 수</div>
+        <div className="library-card rounded-xl p-6 bg-gradient-to-r from-amber-50 to-orange-50 shadow-lg">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-6 text-center">
+            <div className="space-y-2">
+              <div className="text-3xl font-bold library-title text-amber-700">{courses.length}</div>
+              <div className="library-text opacity-70">수집된 지식</div>
             </div>
-            <div>
-              <div className="text-2xl font-bold text-purple-600">{allCategories.length}</div>
-              <div className="text-sm text-gray-600">카테고리</div>
+            <div className="space-y-2">
+              <div className="text-3xl font-bold library-title text-amber-700">{allCategories.length}</div>
+              <div className="library-text opacity-70">학문 분야</div>
             </div>
-            <div>
-              <div className="text-2xl font-bold text-green-600">{allTags.length}</div>
-              <div className="text-sm text-gray-600">태그</div>
+            <div className="space-y-2">
+              <div className="text-3xl font-bold library-title text-amber-700">{allTags.length}</div>
+              <div className="library-text opacity-70">연구 주제</div>
             </div>
           </div>
         </div>
@@ -602,9 +623,10 @@ function CourseModal({ isOpen, onClose, onSubmit, initialData, isEditing = false
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
-      <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-modal-in">
-        <div className="sticky top-0 bg-white rounded-t-xl border-b border-gray-200 px-6 py-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-50 p-4 pt-8 animate-fade-in">
+      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl animate-modal-in transform transition-all duration-300">
+        <div className="max-h-[90vh] overflow-y-auto">
+          <div className="sticky top-0 bg-white rounded-t-xl border-b border-gray-200 px-6 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-3">
               <div className={`p-2 rounded-lg ${isEditing ? 'bg-blue-100' : 'bg-green-100'}`}>
@@ -618,9 +640,6 @@ function CourseModal({ isOpen, onClose, onSubmit, initialData, isEditing = false
                 <h3 className="text-xl font-bold text-gray-900">
                   {isEditing ? '강의 수정' : '새 강의 추가'}
                 </h3>
-                <p className="text-sm text-gray-600">
-                  {isEditing ? '강의 정보를 수정해주세요' : '새로운 강의를 추가해주세요'}
-                </p>
               </div>
             </div>
             <button
@@ -817,6 +836,7 @@ function CourseModal({ isOpen, onClose, onSubmit, initialData, isEditing = false
               </button>
             </div>
           </form>
+        </div>
         </div>
       </div>
     </div>

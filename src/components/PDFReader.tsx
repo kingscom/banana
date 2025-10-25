@@ -1,6 +1,6 @@
-'use client'
+﻿'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import { createClient } from '@/lib/supabase'
 import { useAuth } from './AuthProvider'
@@ -39,7 +39,7 @@ interface Note {
 }
 
 // 하이라이트 오버레이 컴포넌트
-function HighlightOverlay({ highlights, pageNumber }: { highlights: Highlight[], pageNumber: number }) {
+const HighlightOverlay = React.memo(function HighlightOverlay({ highlights, pageNumber }: { highlights: Highlight[], pageNumber: number }) {
   const [overlayHighlights, setOverlayHighlights] = useState<Array<Highlight & { actualX: number, actualY: number, actualWidth: number, actualHeight: number }>>([])
 
   useEffect(() => {
@@ -50,28 +50,18 @@ function HighlightOverlay({ highlights, pageNumber }: { highlights: Highlight[],
       const pdfPage = document.querySelector('.react-pdf__Page')
       
       // 가장 정확한 기준점 선택
-      const pageRect = (pdfCanvas || textLayer || pdfPage)?.getBoundingClientRect()
+      const pageElement = (pdfCanvas || textLayer || pdfPage)
+      const pageRect = pageElement?.getBoundingClientRect()
       
       if (!pageRect || highlights.length === 0) {
         setOverlayHighlights([])
         return
       }
       
-      // PDF 컨테이너 기준으로 상대 위치 계산
-      const container = document.querySelector('.pdf-container')
-      const containerRect = container?.getBoundingClientRect()
-      
-      if (!containerRect) {
-        setOverlayHighlights([])
-        return
-      }
-      
-      const offsetX = pageRect.left - containerRect.left
-      const offsetY = pageRect.top - containerRect.top
-      
       const updatedHighlights = highlights.map(highlight => {
-        const actualX = offsetX + (highlight.x * (pageRect.width+2)) - 1 // 1px 왼쪽으로 이동
-        const actualY = offsetY + (highlight.y * pageRect.height)
+        // PDF 페이지 크기를 기준으로 상대적 위치를 픽셀로 변환 (X 위치 대폭 조정)
+        const actualX = (highlight.x * pageRect.width) + 15  // X 위치를 20px 왼쪽으로 조정
+        const actualY = highlight.y * pageRect.height  + 15
         const actualWidth = highlight.width * pageRect.width
         const actualHeight = highlight.height * pageRect.height
         
@@ -97,46 +87,30 @@ function HighlightOverlay({ highlights, pageNumber }: { highlights: Highlight[],
     
     window.addEventListener('resize', handleResize)
     
-    // PDF 페이지 로드 완료 후 다시 계산 (한 번만)
-    let hasObserved = false
-    const observer = new MutationObserver((mutations) => {
-      // 텍스트 레이어나 캔버스가 추가되었을 때만 재계산
-      const hasRelevantChange = mutations.some(mutation => 
-        Array.from(mutation.addedNodes).some(node => 
-          node instanceof Element && (
-            node.classList.contains('react-pdf__Page__canvas') ||
-            node.classList.contains('react-pdf__Page__textContent')
-          )
-        )
-      )
-      
-      if (hasRelevantChange && !hasObserved) {
-        hasObserved = true
-        setTimeout(() => {
-          updateHighlightPositions()
-          hasObserved = false
-        }, 200)
-      }
-    })
-    
-    const pdfContainer = document.querySelector('.react-pdf__Page')
-    if (pdfContainer) {
-      observer.observe(pdfContainer, { childList: true, subtree: true })
-    }
+    // PDF 페이지 로드 완료를 위한 단일 타이머 (과도한 재요청 방지)
+    const timeoutId = setTimeout(() => {
+      updateHighlightPositions()
+    }, 300)
     
     return () => {
       window.removeEventListener('resize', handleResize)
-      observer.disconnect()
+      clearTimeout(timeoutId)
     }
-  }, [highlights, pageNumber])
+  }, [highlights.length, pageNumber]) // highlights 배열 자체가 아닌 길이만 감시
 
   return (
-    <>
+    <div className="absolute inset-0 pointer-events-none z-20" style={{ 
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%'
+    }}>
       {overlayHighlights.map((highlight) => (
         <div
           key={highlight.id}
           data-highlight-id={highlight.id}
-          className="absolute bg-yellow-300 bg-opacity-30 border border-yellow-400 pointer-events-none z-10 transition-all duration-300"
+          className="absolute bg-yellow-300 bg-opacity-30 border border-yellow-400 pointer-events-none transition-all duration-300"
           style={{
             left: `${highlight.actualX}px`,
             top: `${highlight.actualY}px`,
@@ -146,9 +120,9 @@ function HighlightOverlay({ highlights, pageNumber }: { highlights: Highlight[],
           title={highlight.text}
         />
       ))}
-    </>
+    </div>
   )
-}
+})
 
 export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFReaderProps) {
   const [selectedPDF, setSelectedPDF] = useState<File | null>(null)
@@ -164,6 +138,8 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
   const [isLoadingSummary, setIsLoadingSummary] = useState<boolean>(false)
   const [pageLoaded, setPageLoaded] = useState<boolean>(false)
   const [highlightsLoaded, setHighlightsLoaded] = useState<boolean>(false)
+  const [isFlipping, setIsFlipping] = useState<boolean>(false)
+  const [flipDirection, setFlipDirection] = useState<'next' | 'prev' | null>(null)
   const supabase = createClient()
   const { user, loading: authLoading } = useAuth()
 
@@ -269,9 +245,9 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
   // PDF 문서가 로드된 후 하이라이트 불러오기
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages)
-    if (!highlightsLoaded) {
+    if (!highlightsLoaded && selectedPDFId && user) {
+      setHighlightsLoaded(true) // 먼저 플래그를 설정하여 중복 호출 방지
       loadHighlights()
-      setHighlightsLoaded(true)
     }
     
     // 초기 페이지가 지정된 경우 해당 페이지로 이동
@@ -284,11 +260,8 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
   // 하이라이트 불러오기
   const loadHighlights = async () => {
     if (!selectedPDFId || !user) {
-      console.log('하이라이트 로딩 스킵:', { selectedPDFId, userId: user?.id })
       return
     }
-
-    console.log('하이라이트 로딩 시작:', { selectedPDFId, userId: user.id })
 
     try {
       const response = await fetch(`/api/highlights?document_id=${selectedPDFId}&user_id=${user.id}`)
@@ -298,8 +271,6 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
         console.error('하이라이트 로딩 오류:', result.error)
         return
       }
-      
-      console.log('API에서 로드된 하이라이트:', result.data)
       
       const formattedHighlights = result.data.map((h: any) => ({
         id: h.id,
@@ -380,8 +351,9 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
         return
       }
       
-      console.log('선택 영역:', { left: rect.left, top: rect.top, width: rect.width, height: rect.height })
-      console.log('PDF 페이지 영역:', { left: pageRect.left, top: pageRect.top, width: pageRect.width, height: pageRect.height })
+      // 위치 정보 로깅 (디버깅 시에만 활성화)
+      // console.log('선택 영역:', { left: rect.left, top: rect.top, width: rect.width, height: rect.height })
+      // console.log('PDF 페이지 영역:', { left: pageRect.left, top: pageRect.top, width: pageRect.width, height: pageRect.height })
       
       // PDF 페이지 크기 기준으로 상대 비율 계산 (0-1 사이 값)
       const relativeX = (rect.left - pageRect.left) / pageRect.width
@@ -389,7 +361,8 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
       const relativeWidth = rect.width / pageRect.width
       const relativeHeight = rect.height / pageRect.height
       
-      console.log('상대 위치:', { x: relativeX, y: relativeY, width: relativeWidth, height: relativeHeight })
+      // 상대 위치 로깅 (디버깅 시에만 활성화)
+      // console.log('상대 위치:', { x: relativeX, y: relativeY, width: relativeWidth, height: relativeHeight })
       
       const newHighlight: Highlight = {
         id: crypto.randomUUID(),
@@ -403,7 +376,8 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
         height: relativeHeight
       }
 
-      console.log('하이라이트 추가:', newHighlight)
+      // 하이라이트 추가 로깅 (디버깅 시에만 활성화)
+      // console.log('하이라이트 추가:', newHighlight)
 
       // 먼저 UI에 임시로 추가 (즉시 피드백)
       const tempHighlight = { ...newHighlight }
@@ -561,17 +535,18 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
 
   if (pdfs.length === 0) {
     return (
-      <div className="text-center py-12">
-        <div className="max-w-md mx-auto">
-          <div className="mb-4">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
+      <div className="h-screen library-background flex items-center justify-center">
+        <div className="text-center space-y-6">
+          <div className="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
+            <FileText className="w-12 h-12 text-amber-500" />
           </div>
-          <h3 className="text-lg font-medium text-gray-900">PDF 문서가 없습니다</h3>
-          <p className="mt-2 text-sm text-gray-500">
-            PDF 파일을 업로드하여 시작하세요.
-          </p>
+          <div className="space-y-2">
+            <h3 className="library-title text-2xl">빈 서재</h3>
+            <p className="library-text opacity-70">
+              아직 읽을 책이 없습니다.<br/>
+              PDF 문서를 업로드하여 독서를 시작해보세요.
+            </p>
+          </div>
         </div>
       </div>
     )
@@ -635,139 +610,273 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
   }, [targetHighlightId, highlights, pageLoaded, pageNumber])
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen library-background">
       {/* PDF Viewer */}
       <div className="flex-1 flex">
-        <div className="flex-1 overflow-auto bg-gray-100 p-4">
+        <div className="flex-1 overflow-auto p-6 custom-scrollbar">
           {selectedPDF ? (
-            <div className="max-w-4xl mx-auto">
-              <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
-                {/* 문서 제목 및 컨트롤 */}
-                <div className="flex justify-between items-center mb-4 border-b pb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-blue-50 rounded-lg">
-                      <FileText className="h-5 w-5 text-blue-600" />
+            <div className="max-w-5xl mx-auto">
+              {/* Open Book Header */}
+              <div className="book-card rounded-2xl p-6 mb-6 relative overflow-hidden">
+                {/* Book binding effect */}
+                <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-amber-700 to-amber-500 rounded-l-2xl"></div>
+                <div className="absolute left-3 top-0 bottom-0 w-1 bg-amber-300 opacity-50"></div>
+                
+                <div className="ml-6">
+                  <div className="flex justify-between items-center mb-4">
+                    {/* Book Title & Info */}
+                    <div className="flex items-center space-x-4">
+                      <div className="relative">
+                        <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl flex items-center justify-center shadow-lg">
+                          <FileText className="w-8 h-8 text-amber-50" />
+                        </div>
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-semibold text-gray-900">
+                          {pdfs[0]?.name || '문서'}
+                        </h2>
+                        <p className="text-sm text-gray-500">
+                          {pdfs[0]?.document && new Date(pdfs[0].document.created_at).toLocaleDateString('ko-KR')}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-900">
-                        {pdfs[0]?.name || '문서'}
-                      </h2>
-                      <p className="text-sm text-gray-500">
-                        {pdfs[0]?.document && new Date(pdfs[0].document.created_at).toLocaleDateString('ko-KR')}
-                      </p>
+                    <button
+                      onClick={() => setShowHighlights(!showHighlights)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        showHighlights 
+                          ? 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200' 
+                          : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      하이라이트 {showHighlights ? '숨기기' : '보기'}
+                    </button>
+                  </div>
+
+                  {/* 페이지 네비게이션 */}
+                  <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={() => {
+                          if (isFlipping || pageNumber <= 1) return
+                          setIsFlipping(true)
+                          setFlipDirection('prev')
+                          setTimeout(() => {
+                            setPageLoaded(false)
+                            setPageNumber(Math.max(1, pageNumber - 1))
+                            setTimeout(() => {
+                              setIsFlipping(false)
+                              setFlipDirection(null)
+                            }, 800)
+                          }, 400)
+                        }}
+                        disabled={pageNumber <= 1 || isFlipping}
+                        className="flex items-center space-x-2 px-4 py-2 bg-white text-gray-700 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                      >
+                        <span>←</span>
+                        <span>이전</span>
+                      </button>
+                      
+                      <div className="px-4 py-2 bg-white text-gray-700 font-medium rounded-lg border border-gray-200 shadow-sm">
+                        {pageNumber} / {numPages}
+                      </div>
+                      
+                      <button
+                        onClick={() => {
+                          if (isFlipping || pageNumber >= numPages) return
+                          setIsFlipping(true)
+                          setFlipDirection('next')
+                          setTimeout(() => {
+                            setPageLoaded(false)
+                            setPageNumber(Math.min(numPages, pageNumber + 1))
+                            setTimeout(() => {
+                              setIsFlipping(false)
+                              setFlipDirection(null)
+                            }, 800)
+                          }, 400)
+                        }}
+                        disabled={pageNumber >= numPages || isFlipping}
+                        className="flex items-center space-x-2 px-4 py-2 bg-white text-gray-700 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                      >
+                        <span>다음</span>
+                        <span>→</span>
+                      </button>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={addHighlight}
+                        disabled={!selectedText}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          selectedText 
+                            ? 'bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100' 
+                            : 'bg-gray-50 text-gray-400 border border-gray-200 cursor-not-allowed'
+                        }`}
+                        title={selectedText ? `선택된 텍스트: "${selectedText.substring(0, 50)}..."` : "텍스트를 선택하세요"}
+                      >
+                        하이라이트 {selectedText && `(${selectedText.length}자)`}
+                      </button>
+                      <button
+                        onClick={generateSummary}
+                        className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors font-medium"
+                      >
+                        AI 요약
+                      </button>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setShowHighlights(!showHighlights)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      showHighlights 
-                        ? 'bg-yellow-500 text-white hover:bg-yellow-600' 
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
-                  >
-                    하이라이트 {showHighlights ? '숨기기' : '보기'}
-                  </button>
-                </div>
 
-                {/* 페이지 네비게이션 */}
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center space-x-4">
-                    <button
-                      onClick={() => {
-                        setPageLoaded(false)
-                        setPageNumber(Math.max(1, pageNumber - 1))
-                      }}
-                      disabled={pageNumber <= 1}
-                      className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50 hover:bg-gray-300"
-                    >
-                      이전
-                    </button>
-                    <span className="text-sm text-gray-600 font-medium">
-                      {pageNumber} / {numPages}
-                    </span>
-                    <button
-                      onClick={() => {
-                        setPageLoaded(false)
-                        setPageNumber(Math.min(numPages, pageNumber + 1))
-                      }}
-                      disabled={pageNumber >= numPages}
-                      className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50 hover:bg-gray-300"
-                    >
-                      다음
-                    </button>
-                  </div>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={addHighlight}
-                      className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 font-medium disabled:opacity-50"
-                      title={selectedText ? `선택된 텍스트: "${selectedText.substring(0, 50)}..."` : "텍스트를 선택하세요"}
-                    >
-                      🖍️ 하이라이트 {selectedText && `(${selectedText.length}자)`}
-                    </button>
-                    <button
-                      onClick={generateSummary}
-                      className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 font-medium"
-                    >
-                      ✨ AI 요약
-                    </button>
-                  </div>
-                </div>
+                  {/* 책 느낌의 PDF 문서 컨테이너 */}
+                  <div className="relative flex justify-center items-start">
+                    {/* 왼쪽 책갈피 영역 */}
+                    <div className="flex flex-col justify-start items-center mr-0 relative z-50" style={{ pointerEvents: 'none' }}>
+                      {/* 읽은 페이지들 (책갈피) */}
+                      <div className="relative" style={{ height: '800px' }}>
+                        {Array.from({ length: Math.min(Math.max(pageNumber - 1, 1), 12) }, (_, i) => (
+                          <div
+                            key={i}
+                            className="absolute bg-gradient-to-r from-amber-50 to-white rounded-sm shadow-sm"
+                            style={{
+                              width: '12px',
+                              height: '800px',
+                              left: `${i * -2}px`,
+                              top: `${i * -1}px`,
+                              zIndex: 60 - i,
+                              opacity: Math.max(0.3, 0.9 - (i * 0.06))
+                            }}
+                          />
+                        ))}
+                        <div className="w-12 bg-gradient-to-r from-amber-100 to-amber-50 border-l-4 border-amber-400 rounded-sm shadow-lg relative z-70" style={{ height: '800px' }}>
+                          {/* 읽은 페이지 라벨 */}
+                          <div className="absolute top-8 left-0 right-0 flex justify-center">
+                            <div className="bg-amber-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+                              {pageNumber - 1}
+                            </div>
+                          </div>
+                          <div className="absolute top-20 left-1 right-1 text-center">
+                            <div className="text-xs text-amber-800 font-bold transform rotate-90 origin-center whitespace-nowrap">
+                              읽은페이지
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-                {/* PDF 문서 */}
-                <div 
-                  onMouseUp={handleTextSelection}
-                  onClick={handleTextSelection}
-                  onKeyUp={handleTextSelection}
-                  className="border rounded relative pdf-container flex justify-center"
-                  style={{ userSelect: 'text' }}
-                >
-                  <Document
-                    file={selectedPDF}
-                    onLoadSuccess={onDocumentLoadSuccess}
-                    className="flex justify-center"
-                  >
-                    <Page 
-                      pageNumber={pageNumber}
-                      renderTextLayer={true}
-                      renderAnnotationLayer={false}
-                      className="pdf-page"
-                      onLoadSuccess={() => {
-                        setPageLoaded(true)
-                        console.log('PDF 페이지 로드 완료')
-                      }}
-                      onGetTextSuccess={(textItems) => {
-                        console.log('PDF 텍스트 레이어 로드됨:', textItems)
-                      }}
-                    />
-                  </Document>
-                  
-                  {/* 하이라이트 오버레이 */}
-                  {showHighlights && pageLoaded && (
-                    <HighlightOverlay 
-                      highlights={highlights.filter(h => h.pageNumber === pageNumber)}
-                      pageNumber={pageNumber}
-                    />
+                    {/* 중앙 PDF 문서 */}
+                    <div 
+                      onMouseUp={handleTextSelection}
+                      onClick={handleTextSelection}
+                      onKeyUp={handleTextSelection}
+                      className={`relative bg-white rounded-lg border border-gray-200 shadow-lg pdf-container flex justify-center book-container transition-all duration-500 ease-in-out z-10 ${
+                        isFlipping && flipDirection === 'next' ? 'page-flip-next' :
+                        isFlipping && flipDirection === 'prev' ? 'page-flip-prev' :
+                        !pageLoaded ? 'opacity-0 transform scale-95' : 'opacity-100 transform scale-100'
+                      }`}
+                      style={{ userSelect: 'text' }}
+                    >
+                    <Document
+                      file={selectedPDF}
+                      onLoadSuccess={onDocumentLoadSuccess}
+                      className="flex justify-center"
+                      loading={
+                        <div className="flex items-center justify-center p-8">
+                          <div className="text-center space-y-3">
+                            <div className="animate-spin w-8 h-8 border-3 border-amber-200 border-t-amber-500 rounded-full mx-auto"></div>
+                            <p className="library-text text-sm">문서를 읽는 중...</p>
+                          </div>
+                        </div>
+                      }
+                      error={
+                        <div className="flex items-center justify-center p-8">
+                          <div className="text-center space-y-3 max-w-md">
+                            <FileText className="w-12 h-12 text-red-400 mx-auto" />
+                            <div className="space-y-2">
+                              <p className="text-red-600 font-medium">문서를 불러올 수 없습니다</p>
+                              <p className="text-sm text-amber-700 opacity-70">
+                                파일이 손상되었거나 지원되지 않는 형식일 수 있습니다.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      }
+                    >
+                      <Page 
+                        pageNumber={pageNumber}
+                        renderTextLayer={true}
+                        renderAnnotationLayer={false}
+                        className="pdf-page shadow-inner"
+                        onLoadSuccess={() => {
+                          setPageLoaded(true)
+                          console.log('PDF 페이지 로드 완료')
+                        }}
+                        onGetTextSuccess={(textItems) => {
+                          console.log('PDF 텍스트 레이어 로드됨:', textItems)
+                        }}
+                      />
+                    </Document>
+                    
+                      {/* 하이라이트 오버레이 - PDF 페이지와 정확히 같은 위치 */}
+                      {showHighlights && pageLoaded && (
+                        <HighlightOverlay 
+                          highlights={highlights.filter(h => h.pageNumber === pageNumber)}
+                          pageNumber={pageNumber}
+                        />
+                      )}
+                    </div>
+
+                    {/* 오른쪽 남은 페이지들 */}
+                    <div className="flex flex-col justify-start items-center ml-0 relative z-50" style={{ pointerEvents: 'none' }}>
+                      <div className="relative" style={{ height: '800px' }}>
+                        {Array.from({ length: Math.min(Math.max(numPages - pageNumber, 1), 12) }, (_, i) => (
+                          <div
+                            key={i}
+                            className="absolute bg-gradient-to-l from-gray-100 to-white border border-gray-200 rounded-sm shadow-sm"
+                            style={{
+                              width: '12px',
+                              height: '800px',
+                              right: `${i * -2}px`,
+                              top: `${i * -1}px`,
+                              zIndex: 60 - i,
+                              opacity: Math.max(0.3, 0.8 - (i * 0.05))
+                            }}
+                          />
+                        ))}
+                        <div className="w-12 bg-gradient-to-l from-gray-200 to-gray-100 border-r-4 border-gray-500 rounded-sm shadow-lg relative z-70" style={{ height: '800px' }}>
+                          {/* 남은 페이지 라벨 */}
+                          <div className="absolute top-8 left-0 right-0 flex justify-center">
+                            <div className="bg-gray-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+                              {numPages - pageNumber}
+                            </div>
+                          </div>
+                          <div className="absolute top-20 left-1 right-1 text-center">
+                            <div className="text-xs text-gray-700 font-bold transform rotate-90 origin-center whitespace-nowrap">
+                              남은페이지
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 선택된 텍스트 표시 */}
+                  {selectedText && (
+                    <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <p className="text-sm font-medium text-gray-700 mb-2">선택된 텍스트</p>
+                      <p className="text-sm text-gray-600 bg-white p-3 rounded border mb-3">{selectedText}</p>
+                      <button
+                        onClick={addHighlight}
+                        className="px-4 py-2 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg text-sm font-medium hover:bg-yellow-100 transition-colors"
+                      >
+                        하이라이트 추가
+                      </button>
+                    </div>
                   )}
                 </div>
-
-                {/* 선택된 텍스트 표시 */}
-                {selectedText && (
-                  <div className="mt-4 p-3 bg-yellow-50 rounded border border-yellow-200">
-                    <p className="text-sm font-medium text-gray-900">선택된 텍스트:</p>
-                    <p className="text-sm text-gray-700 mt-1">{selectedText}</p>
-                    <button
-                      onClick={addHighlight}
-                      className="mt-2 px-3 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
-                    >
-                      하이라이트 추가
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           ) : (
             <div className="flex items-center justify-center h-full">
-              <p className="text-gray-500">문서를 로딩 중...</p>
+              <div className="text-center space-y-4">
+                <div className="animate-spin w-12 h-12 border-4 border-amber-200 border-t-amber-500 rounded-full mx-auto"></div>
+                <p className="library-text">문서를 로딩 중...</p>
+              </div>
             </div>
           )}
         </div>
@@ -776,31 +885,33 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
         {showHighlights && (
           <div className="w-80 bg-white border-l p-4 overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold text-gray-900">하이라이트</h3>
-              <span className="text-sm text-gray-500">
+              <h3 className="font-semibold text-gray-800">하이라이트</h3>
+              <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
                 {highlights.length}개
               </span>
             </div>
             
             <div className="space-y-3">
               {highlights.length === 0 && (
-                <div className="text-center py-8">
-                  <div className="text-gray-400 mb-2">🖍️</div>
-                  <p className="text-gray-500 text-sm">
-                    하이라이트가 없습니다.<br />
-                    텍스트를 선택하고 하이라이트 버튼을 클릭하세요.
-                  </p>
+                <div className="text-center py-8 bg-gray-50 rounded-lg">
+                  <div className="text-gray-400 text-2xl mb-2">📝</div>
+                  <div className="space-y-1">
+                    <p className="text-gray-600 font-medium">하이라이트가 없습니다</p>
+                    <p className="text-gray-500 text-sm">
+                      텍스트를 선택하고<br />하이라이트 버튼을 클릭하세요
+                    </p>
+                  </div>
                 </div>
               )}
               
               {highlights.map((highlight) => (
                 <div 
                   key={highlight.id} 
-                  className="p-3 bg-yellow-50 rounded border border-yellow-200 cursor-pointer hover:bg-yellow-100 transition-colors"
+                  className="p-3 bg-white rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
                   onClick={() => goToHighlight(highlight)}
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                    <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
                       페이지 {highlight.pageNumber}
                     </span>
                     <button
@@ -808,9 +919,9 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                         e.stopPropagation()
                         deleteHighlight(highlight.id)
                       }}
-                      className="text-red-500 hover:text-red-700 text-xs"
+                      className="text-xs text-gray-400 hover:text-red-500 transition-colors"
                     >
-                      삭제
+                      ✕
                     </button>
                   </div>
                   <p className="text-sm text-gray-700 line-clamp-3">

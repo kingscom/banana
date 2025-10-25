@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from './AuthProvider'
-import { BarChart, FileText, ChevronRight, Hash, Calendar, ExternalLink, Search, MapPin, X } from 'lucide-react'
+import { BarChart, FileText, ChevronRight, Hash, Calendar, ExternalLink, Search, MapPin, X, BookMarked, TrendingUp, Lightbulb, Target } from 'lucide-react'
 
 interface Highlight {
   id: string
@@ -259,14 +259,7 @@ function WordCloudCanvas({
   return (
     <div 
       ref={containerRef}
-      className="relative min-h-[500px] bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-lg overflow-hidden border"
-      style={{ 
-        backgroundImage: `
-          radial-gradient(circle at 25% 25%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-          radial-gradient(circle at 75% 75%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
-          radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.08) 0%, transparent 70%)
-        ` 
-      }}
+      className="relative min-h-[600px] bg-transparent rounded-xl overflow-hidden"
     >
       {positions.map((pos, index) => {
         const isSelected = selectedWord === pos.word.word
@@ -492,14 +485,32 @@ export default function HighlightAnalytics({
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">하이라이트 빈도 분석</h2>
-          <p className="text-gray-600">하이라이트에서 추출한 키워드 분석을 로딩 중...</p>
+      <div className="space-y-8">
+        <div className="library-card rounded-xl p-8 bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 shadow-lg">
+          <div className="flex items-center space-x-6">
+            <div className="w-20 h-20 bg-gradient-to-br from-amber-100 to-orange-100 rounded-full flex items-center justify-center shadow-inner">
+              <TrendingUp className="w-10 h-10 text-amber-700" />
+            </div>
+            <div>
+              <h2 className="library-title text-4xl mb-3 text-amber-900">지식 분석실</h2>
+              <p className="library-text text-lg opacity-90 leading-relaxed">
+                🔍 하이라이트에서 핵심 키워드를 추출하고 있습니다...
+              </p>
+            </div>
+          </div>
         </div>
         
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="library-card rounded-xl p-12 bg-white shadow-md">
+          <div className="flex flex-col items-center justify-center">
+            <div className="relative mb-6">
+              <div className="w-16 h-16 bg-gradient-to-br from-amber-100 to-orange-100 rounded-full flex items-center justify-center">
+                <Lightbulb className="w-8 h-8 text-amber-700" />
+              </div>
+              <div className="absolute inset-0 rounded-full border-4 border-amber-300 border-t-transparent animate-spin"></div>
+            </div>
+            <h3 className="library-title text-xl text-amber-900 mb-2">분석 진행 중</h3>
+            <p className="library-text opacity-70">잠시만 기다려주세요...</p>
+          </div>
         </div>
       </div>
     )
@@ -507,21 +518,42 @@ export default function HighlightAnalytics({
 
   if (highlights.length === 0) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">하이라이트 빈도 분석</h2>
-          <p className="text-gray-600">하이라이트에서 추출한 키워드를 분석합니다</p>
+      <div className="space-y-8">
+        <div className="library-card rounded-xl p-8 bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 shadow-lg">
+          <div className="flex items-center space-x-6">
+            <div className="w-20 h-20 bg-gradient-to-br from-amber-100 to-orange-100 rounded-full flex items-center justify-center shadow-inner">
+              <TrendingUp className="w-10 h-10 text-amber-700" />
+            </div>
+            <div>
+              <h2 className="library-title text-4xl mb-3 text-amber-900">지식 분석실</h2>
+              <p className="library-text text-lg opacity-90 leading-relaxed">
+                📊 하이라이트에서 추출한 핵심 키워드를 분석하여 지식의 패턴을 발견합니다
+              </p>
+            </div>
+          </div>
         </div>
         
-        <div className="text-center py-12">
-          <div className="max-w-md mx-auto">
-            <div className="mb-4">
-              <Hash className="mx-auto h-12 w-12 text-gray-400" />
+        <div className="library-card rounded-xl p-12 bg-white shadow-md">
+          <div className="text-center max-w-lg mx-auto">
+            <div className="relative mb-8">
+              <div className="w-24 h-24 bg-gradient-to-br from-amber-100 to-orange-100 rounded-full flex items-center justify-center mx-auto shadow-lg">
+                <BookMarked className="w-12 h-12 text-amber-700" />
+              </div>
+              <div className="absolute -top-2 -right-2 w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
+                <Hash className="w-4 h-4 text-white" />
+              </div>
             </div>
-            <h3 className="text-lg font-medium text-gray-900">하이라이트가 없습니다</h3>
-            <p className="mt-2 text-sm text-gray-500">
-              PDF 문서에서 텍스트를 하이라이트하면 키워드 분석을 확인할 수 있습니다.
+            <h3 className="library-title text-2xl text-amber-900 mb-4">첫 번째 필사가 필요합니다</h3>
+            <p className="library-text text-lg opacity-80 leading-relaxed mb-6">
+              PDF 문서에서 중요한 구절을 하이라이트하면<br/>
+              AI가 자동으로 키워드를 분석하고<br/>
+              지식의 연관성을 시각화해드립니다
             </p>
+            <div className="flex items-center justify-center space-x-2 text-amber-600">
+              <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
+              <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse delay-100"></div>
+              <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse delay-200"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -532,42 +564,88 @@ export default function HighlightAnalytics({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">하이라이트 빈도 분석</h2>
-        <p className="text-gray-600">
-          총 {highlights.length}개의 하이라이트에서 {wordFrequencies.length}개의 키워드를 분석했습니다
-        </p>
-      </div>
-
-      {/* 필터 컨트롤 */}
-      <div className="bg-white rounded-lg shadow-sm border p-4">
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <label className="text-sm font-medium text-gray-700">최소 글자 수:</label>
-            <select
-              value={minWordLength}
-              onChange={(e) => setMinWordLength(Number(e.target.value))}
-              className="px-3 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value={1}>1글자 이상</option>
-              <option value={2}>2글자 이상</option>
-              <option value={3}>3글자 이상</option>
-              <option value={4}>4글자 이상</option>
-            </select>
+      <div className="library-card rounded-xl p-8 bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 shadow-lg">
+        <div className="flex items-center space-x-6">
+          <div className="relative">
+            <div className="w-20 h-20 bg-gradient-to-br from-amber-100 to-orange-100 rounded-full flex items-center justify-center shadow-inner">
+              <TrendingUp className="w-10 h-10 text-amber-700" />
+            </div>
+            <div className="absolute -top-1 -right-1 w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+              <Lightbulb className="w-3 h-3 text-white" />
+            </div>
           </div>
-          
-          <div className="flex items-center space-x-2 text-sm text-gray-500">
-            <BarChart size={16} />
-            <span>상위 {Math.min(wordFrequencies.length, 100)}개 키워드</span>
+          <div>
+            <h2 className="library-title text-4xl mb-3 text-amber-900">지식 분석실</h2>
+            <p className="library-text text-lg opacity-90 leading-relaxed">
+              📚 총 <span className="font-bold text-amber-800">{highlights.length}개</span>의 하이라이트에서 <span className="font-bold text-amber-800">{wordFrequencies.length}개</span>의 핵심 개념을 발견했습니다
+            </p>
+            <p className="library-text text-sm opacity-70 mt-2">
+              여러분의 독서 패턴과 관심사를 시각적으로 탐험하고, 숨겨진 지식의 연결고리를 찾아보세요
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* 분석 도구 */}
+      <div className="library-card rounded-xl p-6 bg-white shadow-md">
+        <div className="flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0">
+          <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                <Search className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold library-text text-amber-900">분석 필터</label>
+                <select
+                  value={minWordLength}
+                  onChange={(e) => setMinWordLength(Number(e.target.value))}
+                  className="block mt-1 px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300 library-background bg-amber-50 font-medium"
+                >
+                  <option value={1}>모든 단어</option>
+                  <option value={2}>2글자 이상</option>
+                  <option value={3}>3글자 이상</option>
+                  <option value={4}>4글자 이상</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 bg-amber-50 px-4 py-2 rounded-lg">
+              <Target className="w-4 h-4 text-amber-600" />
+              <span className="text-sm font-medium library-text text-amber-800">
+                상위 {Math.min(wordFrequencies.length, 100)}개 핵심어
+              </span>
+            </div>
+            <div className="flex items-center space-x-2 bg-orange-50 px-4 py-2 rounded-lg">
+              <BookMarked className="w-4 h-4 text-orange-600" />
+              <span className="text-sm font-medium library-text text-orange-800">
+                {documents.length}개 문서 분석
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* 워드 클라우드 */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow-sm border p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">키워드 클라우드</h3>
+          <div className="library-card rounded-xl p-8 bg-gradient-to-br from-white to-amber-50 shadow-lg">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-amber-100 to-orange-100 rounded-lg flex items-center justify-center shadow-inner">
+                  <Target className="w-6 h-6 text-amber-700" />
+                </div>
+                <div>
+                  <h3 className="library-title text-2xl text-amber-900">지식 구름</h3>
+                  <p className="library-text text-sm opacity-70">클릭하여 상세 정보 탐색</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm font-medium text-amber-800">{wordFrequencies.length}개 개념</div>
+                <div className="text-xs text-amber-600 opacity-70">빈도순 정렬</div>
+              </div>
+            </div>
             
             {wordFrequencies.length > 0 ? (
               <WordCloudCanvas 
@@ -586,22 +664,40 @@ export default function HighlightAnalytics({
 
         {/* 선택된 단어 정보 */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow-sm border p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">키워드 상세 정보</h3>
+          <div className="library-card rounded-xl p-6 bg-gradient-to-b from-white to-amber-50 shadow-md h-fit">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-orange-100 rounded-lg flex items-center justify-center shadow-inner">
+                <BookMarked className="w-5 h-5 text-amber-700" />
+              </div>
+              <div>
+                <h3 className="library-title text-xl text-amber-900">개념 상세</h3>
+                <p className="library-text text-xs opacity-70">선택한 개념의 심층 분석</p>
+              </div>
+            </div>
             
             {selectedWordData ? (
-              <div className="space-y-4">
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-xl font-bold text-blue-900">
+              <div className="space-y-6">
+                <div className="p-6 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl shadow-sm">
+                  <div className="text-center mb-4">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-full shadow-inner mb-4">
+                      <span className="text-2xl font-bold text-amber-700">
+                        {selectedWordData.word.charAt(0)}
+                      </span>
+                    </div>
+                    <h4 className="text-2xl font-bold library-title text-amber-900 mb-2">
                       "{selectedWordData.word}"
                     </h4>
-                    <span className="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full">
-                      {selectedWordData.count}회
-                    </span>
+                    <div className="flex items-center justify-center space-x-4">
+                      <span className="bg-amber-600 text-white text-sm font-bold px-4 py-2 rounded-full shadow-sm">
+                        {selectedWordData.count}회 발견
+                      </span>
+                      <span className="bg-white text-amber-800 text-sm font-medium px-3 py-1 rounded-full shadow-sm">
+                        {selectedWordData.highlights.length}개 하이라이트
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-sm text-blue-700">
-                    {selectedWordData.highlights.length}개의 하이라이트에서 발견
+                  <p className="text-sm library-text text-amber-700">
+                    {selectedWordData.highlights.length}개의  하이라이트에서 발견된 중요 개념
                   </p>
                 </div>
 
@@ -643,11 +739,19 @@ export default function HighlightAnalytics({
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8">
-                <Hash className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-                <p className="text-gray-500 text-sm">
-                  키워드를 클릭하면<br />상세 정보를 확인할 수 있습니다
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Search className="w-8 h-8 text-amber-600" />
+                </div>
+                <h4 className="library-title text-lg text-amber-900 mb-2">개념을 선택해보세요</h4>
+                <p className="library-text text-sm opacity-70 leading-relaxed">
+                  지식 구름에서 관심있는 키워드를<br />
+                  클릭하면 상세한 분석 정보를<br />
+                  확인하실 수 있습니다
                 </p>
+                <div className="mt-4 flex items-center justify-center">
+                  <div className="w-8 h-1 bg-amber-200 rounded-full"></div>
+                </div>
               </div>
             )}
           </div>
@@ -655,26 +759,29 @@ export default function HighlightAnalytics({
       </div>
 
       {/* 통계 요약 */}
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">분석 통계</h3>
+      <div className="library-card rounded-xl p-6 bg-gradient-to-r from-amber-50 to-orange-50 shadow-lg">
+        <div className="flex items-center space-x-3 mb-4">
+          <TrendingUp className="w-6 h-6 text-amber-600" />
+          <h3 className="library-title text-xl">분석 결과</h3>
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-3 bg-gray-50 rounded-lg">
-            <div className="text-2xl font-bold text-blue-600">{highlights.length}</div>
-            <div className="text-sm text-gray-600">총 하이라이트</div>
+          <div className="text-center p-4 library-card rounded-lg bg-white/50 shadow-sm">
+            <div className="text-3xl font-bold library-title text-amber-700">{highlights.length}</div>
+            <div className="text-sm library-text opacity-70">수집한 서적</div>
           </div>
-          <div className="text-center p-3 bg-gray-50 rounded-lg">
-            <div className="text-2xl font-bold text-green-600">{wordFrequencies.length}</div>
-            <div className="text-sm text-gray-600">고유 키워드</div>
+          <div className="text-center p-4 library-card rounded-lg bg-white/50 shadow-sm">
+            <div className="text-3xl font-bold library-title text-amber-700">{wordFrequencies.length}</div>
+            <div className="text-sm library-text opacity-70">핵심 개념</div>
           </div>
-          <div className="text-center p-3 bg-gray-50 rounded-lg">
-            <div className="text-2xl font-bold text-purple-600">{documents.length}</div>
-            <div className="text-sm text-gray-600">분석된 문서</div>
+          <div className="text-center p-4 library-card rounded-lg bg-white/50 shadow-sm">
+            <div className="text-3xl font-bold library-title text-amber-700">{documents.length}</div>
+            <div className="text-sm library-text opacity-70">분석한 도서</div>
           </div>
-          <div className="text-center p-3 bg-gray-50 rounded-lg">
-            <div className="text-2xl font-bold text-orange-600">
+          <div className="text-center p-4 library-card rounded-lg bg-white/50 shadow-sm">
+            <div className="text-3xl font-bold library-title text-amber-700">
               {maxCount}
             </div>
-            <div className="text-sm text-gray-600">최다 언급 횟수</div>
+            <div className="text-sm library-text opacity-70">최고 반복 횟수</div>
           </div>
         </div>
       </div>
