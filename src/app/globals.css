@@ -43,7 +43,8 @@ body {
 
 /* Library-themed components */
 .library-background {
-  background: hsl(var(--library-secondary));
+  background: #ffdea6;
+  
 }
 
 /* Book styling */

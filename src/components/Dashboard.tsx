@@ -733,7 +733,7 @@ export default function Dashboard() {
           {/* Sidebar */}
           <div className="w-72 space-y-3">
             <div className="library-card rounded-xl p-6 bg-white shadow-md">
-              <div className="flex items-center space-x-3 mb-6">
+              <div className="flex items-center space-x-3 mb-6" style={{ borderBottom: '1px solid #f78d00', paddingBottom: '10px' }}>
                 <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-orange-100 rounded-lg flex items-center justify-center">
                   <Hash className="w-5 h-5 text-amber-700" />
                 </div>
@@ -789,7 +789,7 @@ export default function Dashboard() {
             {/* 최근 문서들 */}
             {documents.length > 0 && (
               <div className="library-card rounded-xl p-6 bg-white shadow-md">
-                <div className="flex items-center space-x-3 mb-4">
+                <div className="flex items-center space-x-3 mb-4" style={{ borderBottom: '1px solid #f78d00', paddingBottom: '10px' }}>
                   <div className="w-8 h-8 bg-gradient-to-br from-amber-100 to-orange-100 rounded-lg flex items-center justify-center">
                     <FileText className="w-4 h-4 text-amber-700" />
                   </div>
