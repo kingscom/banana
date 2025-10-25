@@ -39,11 +39,17 @@ interface Note {
 }
 
 // 하이라이트 오버레이 컴포넌트
-const HighlightOverlay = React.memo(function HighlightOverlay({ highlights, pageNumber }: { highlights: Highlight[], pageNumber: number }) {
+const HighlightOverlay = React.memo(function HighlightOverlay({ highlights, pageNumber, pageLoaded }: { highlights: Highlight[], pageNumber: number, pageLoaded: boolean }) {
   const [overlayHighlights, setOverlayHighlights] = useState<Array<Highlight & { actualX: number, actualY: number, actualWidth: number, actualHeight: number }>>([])
 
   useEffect(() => {
     const updateHighlightPositions = () => {
+      // 페이지가 완전히 로드되지 않았으면 하이라이트를 숨김
+      if (!pageLoaded) {
+        setOverlayHighlights([])
+        return
+      }
+
       // PDF 페이지의 실제 렌더링 영역을 찾기
       const pdfCanvas = document.querySelector('.react-pdf__Page__canvas')
       const textLayer = document.querySelector('.react-pdf__Page__textContent')
@@ -90,13 +96,13 @@ const HighlightOverlay = React.memo(function HighlightOverlay({ highlights, page
     // PDF 페이지 로드 완료를 위한 단일 타이머 (과도한 재요청 방지)
     const timeoutId = setTimeout(() => {
       updateHighlightPositions()
-    }, 300)
+    }, pageLoaded ? 100 : 500) // 페이지가 로드되었으면 빠르게, 아니면 더 기다림
     
     return () => {
       window.removeEventListener('resize', handleResize)
       clearTimeout(timeoutId)
     }
-  }, [highlights.length, pageNumber]) // highlights 배열 자체가 아닌 길이만 감시
+  }, [highlights.length, pageNumber, pageLoaded]) // 페이지 로드 상태도 감시
 
   return (
     <div className="absolute inset-0 pointer-events-none z-20" style={{ 
@@ -106,16 +112,17 @@ const HighlightOverlay = React.memo(function HighlightOverlay({ highlights, page
       width: '100%',
       height: '100%'
     }}>
-      {overlayHighlights.map((highlight) => (
+      {overlayHighlights.map((highlight, index) => (
         <div
           key={highlight.id}
           data-highlight-id={highlight.id}
-          className="absolute bg-yellow-300 bg-opacity-30 border border-yellow-400 pointer-events-none transition-all duration-300"
+          className="absolute bg-yellow-300 bg-opacity-30 border border-yellow-400 pointer-events-none transition-all duration-300 animate-fade-in"
           style={{
             left: `${highlight.actualX}px`,
             top: `${highlight.actualY}px`,
             width: `${highlight.actualWidth}px`,
             height: `${highlight.actualHeight}px`,
+            animationDelay: `${index * 50}ms` // 하이라이트가 순차적으로 나타나도록
           }}
           title={highlight.text}
         />
@@ -859,10 +866,11 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                     </Document>
                     
                       {/* 하이라이트 오버레이 - PDF 페이지와 정확히 같은 위치 */}
-                      {showHighlights && pageLoaded && (
+                      {showHighlights && pageLoaded && !isFlipping && (
                         <HighlightOverlay 
                           highlights={highlights.filter(h => h.pageNumber === pageNumber)}
                           pageNumber={pageNumber}
+                          pageLoaded={pageLoaded}
                         />
                       )}
                     </div>
