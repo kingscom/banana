@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
-import { createClient } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { useAuth } from './AuthProvider'
 import { FileText } from 'lucide-react'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
@@ -140,7 +140,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
   const [highlightsLoaded, setHighlightsLoaded] = useState<boolean>(false)
   const [isFlipping, setIsFlipping] = useState<boolean>(false)
   const [flipDirection, setFlipDirection] = useState<'next' | 'prev' | null>(null)
-  const supabase = createClient()
+  const [pageInputValue, setPageInputValue] = useState<string>('')
   const { user, loading: authLoading } = useAuth()
 
   const [loadingFiles, setLoadingFiles] = useState<Set<string>>(new Set())
@@ -509,6 +509,32 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
     setNotes(prev => [...prev, newNote])
   }
 
+  // 페이지 이동 함수
+  const goToPage = (targetPage: number) => {
+    if (targetPage >= 1 && targetPage <= numPages && targetPage !== pageNumber && !isFlipping) {
+      setIsFlipping(true)
+      setFlipDirection(targetPage > pageNumber ? 'next' : 'prev')
+      setTimeout(() => {
+        setPageLoaded(false)
+        setPageNumber(targetPage)
+        setTimeout(() => {
+          setIsFlipping(false)
+          setFlipDirection(null)
+        }, 800)
+      }, 400)
+    }
+  }
+
+  // 페이지 입력 처리
+  const handlePageInputSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const targetPage = parseInt(pageInputValue)
+    if (!isNaN(targetPage)) {
+      goToPage(targetPage)
+      setPageInputValue('')
+    }
+  }
+
   const generateSummary = async () => {
     if (!selectedPDF) return
     
@@ -676,8 +702,28 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                         <span>이전</span>
                       </button>
                       
-                      <div className="px-4 py-2 bg-white text-gray-700 font-medium rounded-lg border border-gray-200 shadow-sm">
-                        {pageNumber} / {numPages}
+                      {/* 페이지 입력 필드 */}
+                      <form onSubmit={handlePageInputSubmit} className="flex items-center space-x-2">
+                        <input
+                          type="text"
+                          value={pageInputValue}
+                          onChange={(e) => setPageInputValue(e.target.value)}
+                          placeholder="페이지"
+                          className="w-16 px-2 py-1 text-center text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                        <span className="text-gray-500 text-sm">/ {numPages}</span>
+                        <button
+                          type="submit"
+                          className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
+                          disabled={isFlipping}
+                        >
+                          이동
+                        </button>
+                      </form>
+                      
+                      {/* 현재 페이지 표시 */}
+                      <div className="px-3 py-1 bg-gray-100 text-gray-700 font-medium rounded-lg text-sm">
+                        현재: {pageNumber}
                       </div>
                       
                       <button
