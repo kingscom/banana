@@ -110,7 +110,9 @@ AI와 함께하는 개인 학습 공간으로, PDF 문서를 기반으로 한 �
 
 3. **데이터베이스 스키마 설정**
    
-   Supabase 프로젝트의 SQL Editor에서 `supabase/schema.sql` 파일의 내용을 실행하세요.
+   Supabase 프로젝트의 SQL Editor에서 다음 중 하나를 실행하세요:
+   - **개발용**: `supabase/schema_simple.sql` (RLS 비활성화, 단순화된 구조)
+   - **프로덕션용**: `supabase/schema.sql` (완전한 보안 정책 포함)
 
 4. **개발 서버 실행**
    ```bash
@@ -279,56 +281,122 @@ AI 요약 및 질의응답 기능을 사용하려면 OpenAI API 키가 필요합
 - **네트워크**: 안정적인 인터넷 연결 (클라우드 기반 서비스)
 - **저장 용량**: Supabase 무료 플랜 500MB 제한 (유료 플랜 권장)
 
+### 개발 모드 vs 프로덕션 모드
+- **개발 모드**: `schema_simple.sql` 사용, RLS 비활성화, 빠른 개발
+- **프로덕션 모드**: `schema.sql` 사용, 완전한 보안 정책 적용
+- **데이터 격리**: 개발 시 모든 사용자 데이터 접근 가능 (테스트 용이)
+- **보안 강화**: 프로덕션 배포 전 RLS 활성화 필수
+
 ## 📊 데이터베이스 구조
 
-### 사용자 관련 테이블
+### 핵심 테이블 구조 (schema_simple.sql 기준)
+
+#### 사용자 관리
 ```sql
 -- 사용자 프로필 (확장된 사용자 정보)
-user_profiles (id, display_name, avatar_url, department, learning_goals...)
+user_profiles (
+  id UUID PRIMARY KEY,           -- auth.users 참조
+  email TEXT UNIQUE NOT NULL,    -- 이메일 주소
+  display_name TEXT,             -- 표시 이름
+  department TEXT,               -- 소속 부서
+  avatar_url TEXT,               -- 프로필 이미지
+  role user_role DEFAULT 'student',  -- 사용자 역할
+  is_profile_completed BOOLEAN,  -- 프로필 완성 여부
+  preferences JSONB              -- 사용자 설정
+)
 
--- Supabase Auth Users (기본 인증)
-auth.users (id, email, created_at...)
+-- 대시보드 설정
+dashboards (
+  id UUID PRIMARY KEY,
+  user_id UUID,                  -- 사용자 참조
+  title TEXT DEFAULT 'My Dashboard',
+  settings JSONB                 -- 대시보드 레이아웃 설정
+)
 ```
 
-### 문서 관리 테이블
+#### 문서 관리 시스템
 ```sql
--- 문서 메타데이터
-documents (id, user_id, title, file_name, file_size, upload_date...)
-
--- 문서 공유 관리
-shared_documents (id, document_id, shared_by, shared_with, permissions...)
+-- 문서 테이블 (공유 기능 내장)
+documents (
+  id TEXT PRIMARY KEY,           -- 문서 고유 ID
+  user_id UUID,                  -- 소유자 ID
+  title TEXT NOT NULL,           -- 문서 제목
+  file_name TEXT NOT NULL,       -- 원본 파일명
+  file_size INTEGER,             -- 파일 크기
+  file_path TEXT,                -- 서버 저장 경로
+  original_document_id TEXT,     -- 원본 문서 ID (공유 시)
+  shared_by_user_id UUID,        -- 공유한 사용자
+  is_shared BOOLEAN DEFAULT FALSE -- 공유 문서 여부
+)
 ```
 
-### 학습 데이터 테이블
+#### 학습 데이터
 ```sql
--- 하이라이트 (위치 정보 포함)
-highlights (id, document_id, user_id, page_number, selected_text, 
-           position_x, position_y, position_width, position_height...)
-
--- 사용자 노트
-notes (id, document_id, user_id, page_number, content, position_x, position_y...)
-
--- 학습 진행률
-learning_progress (id, user_id, document_id, pages_read, time_spent...)
+-- 하이라이트 (간소화된 구조)
+highlights (
+  id UUID PRIMARY KEY,
+  document_id TEXT NOT NULL,     -- 문서 참조 (외래키 제약 완화)
+  page_number INTEGER,           -- 페이지 번호
+  selected_text TEXT,            -- 선택된 텍스트
+  note TEXT DEFAULT '',          -- 사용자 노트
+  position_x FLOAT,              -- X 좌표 (상대값)
+  position_y FLOAT,              -- Y 좌표 (상대값)
+  position_width FLOAT,          -- 너비 (상대값)
+  position_height FLOAT          -- 높이 (상대값)
+)
 ```
 
-### 지식 관리 테이블
+#### 강좌 추천 시스템
 ```sql
--- 개념 노드
-concepts (id, user_id, name, description, color, position_x, position_y...)
-
--- 개념 연결
-concept_connections (id, user_id, source_concept_id, target_concept_id, relationship...)
-
--- AI 강좌 추천
-course_recommendations (id, user_id, title, platform, url, relevance_score...)
+-- 공용 강좌 데이터베이스
+courses (
+  id UUID PRIMARY KEY,
+  title TEXT NOT NULL,           -- 강의명
+  category TEXT NOT NULL,        -- 카테고리 (프로그래밍, 디자인 등)
+  description TEXT,              -- 강의 설명
+  course_url TEXT NOT NULL,      -- 강의 링크
+  tags TEXT[] DEFAULT '{}',      -- 검색 태그 배열
+  instructor_name TEXT,          -- 강사명
+  duration TEXT,                 -- 강의 시간
+  difficulty_level TEXT DEFAULT 'beginner', -- 난이도
+  platform TEXT,                -- 플랫폼 (유튜브, 유데미 등)
+  language TEXT DEFAULT 'ko'     -- 언어
+)
 ```
 
-### 보안 및 접근 제어
-- **Row Level Security (RLS)**: 모든 테이블에 적용, 사용자별 데이터 완전 격리
-- **실시간 구독**: Supabase Realtime으로 데이터 변경 즉시 반영
-- **UUID 기반 ID**: 보안성 강화된 고유 식별자 사용
-- **외래 키 제약**: 데이터 무결성 및 CASCADE 삭제 보장
+### 데이터베이스 특징 (간소화된 스키마)
+- **개발 친화적 구조**: RLS 비활성화로 개발 단계에서 유연한 접근
+- **외래 키 제약 완화**: highlights 테이블에서 user_id 제거하여 단순화
+- **공유 문서 지원**: documents 테이블에 공유 기능 직접 내장
+- **자동 트리거**: updated_at 컬럼 자동 업데이트 및 신규 사용자 프로필 생성
+- **샘플 데이터**: 7개의 기본 강좌 데이터 사전 삽입 (React, Python, UI/UX 등)
+
+### 사전 삽입된 강좌 데이터
+```sql
+-- 다양한 카테고리의 샘플 강좌들
+'React 완벽 가이드', 'Python 데이터 분석 마스터', 'UI/UX 디자인 기초부터 실무까지'
+'Node.js 백엔드 개발 완주', '딥러닝 기초와 TensorFlow 실습'
+'JavaScript 기초부터 고급까지', 'Figma UI 디자인 시스템 구축'
+
+-- 지원 플랫폼: 유데미, 코세라, 인프런, 유튜브, 패스트캠퍼스
+-- 카테고리: 프로그래밍, 데이터사이언스, 디자인, 인공지능
+-- 난이도: beginner, intermediate, advanced
+```
+
+### 성능 최적화 인덱스
+```sql
+-- 문서 검색 최적화
+idx_documents_user_id, idx_documents_is_shared
+-- 하이라이트 조회 최적화  
+idx_highlights_document_id, idx_highlights_page_number
+-- 강좌 검색 최적화 (GIN 인덱스)
+idx_courses_tags, idx_courses_category, idx_courses_platform
+```
+
+### 보안 정책 (프로덕션용)
+- **개발 모드**: RLS 완전 비활성화 (schema_simple.sql)
+- **프로덕션 모드**: 사용자별 데이터 격리 정책 적용 가능 (주석 처리됨)
+- **자동 프로필 생성**: 신규 사용자 가입 시 프로필 및 대시보드 자동 생성
 
 ## 🤝 기여하기
 
@@ -346,7 +414,96 @@ course_recommendations (id, user_id, title, platform, url, relevance_score...)
 
 프로젝트에 대한 질문이나 제안사항이 있으시면 Issue를 생성해 주세요.
 
-## 🔧 개발 환경 및 도구
+## � 시스템 요구사항
+
+### 🎯 기능적 요구사항
+
+#### 사용자 관리
+- **FR-001**: Google OAuth를 통한 소셜 로그인/로그아웃
+- **FR-002**: 사용자 프로필 관리 (이름, 부서, 아바타, 학습 목표)
+- **FR-003**: 초기 가입 시 프로필 설정 가이드 제공
+- **FR-004**: 사용자별 개인화된 대시보드 제공
+
+#### 문서 관리
+- **FR-005**: PDF 파일 업로드 (단일/다중 파일 지원)
+- **FR-006**: 업로드된 문서 목록 관리 (제목, 크기, 업로드 일시)
+- **FR-007**: 문서 삭제 및 관련 데이터 완전 제거
+- **FR-008**: 다른 사용자와 문서 공유 (이메일 기반)
+- **FR-009**: 공유받은 문서 접근 및 조회
+
+#### PDF 뷰어 및 상호작용
+- **FR-010**: 브라우저 기반 PDF 렌더링 및 표시
+- **FR-011**: 페이지 네비게이션 (이전/다음, 직접 페이지 이동)
+- **FR-012**: 텍스트 선택 및 하이라이트 생성
+- **FR-013**: 하이라이트별 노트 추가/편집/삭제
+- **FR-014**: 하이라이트 관리 사이드바 (목록, 검색, 정렬)
+- **FR-015**: 하이라이트 클릭으로 해당 페이지 즉시 이동
+
+#### 학습 분석
+- **FR-016**: 하이라이트 빈도 분석 (키워드별 통계)
+- **FR-017**: 학습 패턴 시각화 (차트 및 그래프)
+- **FR-018**: 문서별/시간대별 학습 활동 추적
+- **FR-019**: 개인 학습 진행률 측정 및 표시
+
+#### AI 기반 기능
+- **FR-020**: 문서 내용 AI 요약 생성
+- **FR-021**: 개념 연결맵 자동 생성 및 시각화
+- **FR-022**: 학습 패턴 기반 강좌 추천
+- **FR-023**: 하이라이트 키워드 기반 관련 콘텐츠 제안
+
+#### 강좌 추천 시스템
+- **FR-024**: 카테고리별 강좌 분류 (프로그래밍, 디자인, 데이터 사이언스 등)
+- **FR-025**: 난이도별 강좌 필터링 (초급/중급/고급)
+- **FR-026**: 플랫폼별 강좌 제공 (유튜브, 유데미, 인프런 등)
+- **FR-027**: 태그 기반 강좌 검색 및 필터링
+
+### 🏗️ 비기능적 요구사항
+
+#### 성능 요구사항
+- **NFR-001**: PDF 렌더링 응답시간 3초 이내
+- **NFR-002**: 하이라이트 생성/저장 응답시간 1초 이내
+- **NFR-003**: 페이지 로드 시간 2초 이내 (일반적인 네트워크 환경)
+- **NFR-004**: 대용량 PDF (50MB 이상) 업로드 지원
+- **NFR-005**: 동시 사용자 100명 이상 지원
+
+#### 호환성 요구사항
+- **NFR-006**: 모던 브라우저 지원 (Chrome 90+, Firefox 88+, Safari 14+, Edge 90+)
+- **NFR-007**: 데스크톱 해상도 1920x1080 이상 최적화
+- **NFR-008**: 모바일 반응형 지원 (768px 이상)
+- **NFR-009**: React-PDF 7.5.1+ 호환성 보장
+
+#### 보안 요구사항
+- **NFR-010**: HTTPS 통신 필수 (모든 데이터 전송 암호화)
+- **NFR-011**: Supabase Auth를 통한 안전한 사용자 인증
+- **NFR-012**: 사용자별 데이터 완전 격리 (프로덕션 환경)
+- **NFR-013**: SQL 인젝션 방지 (Prepared Statement 사용)
+- **NFR-014**: XSS 공격 방지 (입력 데이터 검증 및 이스케이핑)
+
+#### 가용성 요구사항
+- **NFR-015**: 서비스 가동률 99% 이상 (Vercel/Netlify 기준)
+- **NFR-016**: 데이터베이스 백업 및 복구 지원 (Supabase 자동 백업)
+- **NFR-017**: 장애 발생 시 자동 복구 메커니즘
+- **NFR-018**: 실시간 데이터 동기화 (Supabase Realtime)
+
+#### 사용성 요구사항
+- **NFR-019**: 직관적인 UI/UX (학습 곡선 최소화)
+- **NFR-020**: 키보드 단축키 지원 (접근성 향상)
+- **NFR-021**: 다국어 지원 준비 (i18n 구조)
+- **NFR-022**: 시각적 피드백 제공 (로딩, 성공, 오류 상태)
+
+#### 확장성 요구사항
+- **NFR-023**: 마이크로서비스 아키텍처 준비 (API 모듈화)
+- **NFR-024**: 클라우드 네이티브 구조 (Serverless Functions)
+- **NFR-025**: 캐싱 전략 구현 (브라우저/CDN 캐시 활용)
+- **NFR-026**: 데이터베이스 스케일링 지원 (Supabase 자동 스케일링)
+
+#### 유지보수성 요구사항
+- **NFR-027**: TypeScript 기반 타입 안전성 보장
+- **NFR-028**: 컴포넌트 기반 모듈화 구조
+- **NFR-029**: 코드 커버리지 80% 이상 (테스트 코드)
+- **NFR-030**: ESLint/Prettier를 통한 코드 품질 관리
+
+## �🔧 개발 환경 및 도구
 
 ### 개발 도구
 - **VS Code**: 권장 개발 환경 + TypeScript/React 확장
