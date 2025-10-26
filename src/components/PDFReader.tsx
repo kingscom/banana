@@ -778,6 +778,56 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
 
                   {/* 책 느낌의 PDF 문서 컨테이너 */}
                   <div className="relative flex justify-center items-start">
+                    {/* 왼쪽 이전 페이지 화살표 */}
+                    <div className="absolute top-1/2 -translate-y-1/2 z-[100]" style={{ left: "1.1rem" }}>
+                      <button
+                        onClick={() => {
+                          if (isFlipping || pageNumber <= 1) return
+                          setIsFlipping(true)
+                          setFlipDirection('prev')
+                          setTimeout(() => {
+                            setPageLoaded(false)
+                            setPageNumber(Math.max(1, pageNumber - 1))
+                            setTimeout(() => {
+                              setIsFlipping(false)
+                              setFlipDirection(null)
+                            }, 600)
+                          }, 200)
+                        }}
+                        disabled={pageNumber <= 1 || isFlipping}
+                        className="transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-110"
+                        title="이전 페이지"
+                      >
+                        <svg width="60" height="50" viewBox="0 0 60 50" className="drop-shadow-lg">
+                          <defs>
+                            <linearGradient id="leftArrowGradient" x1="20%" y1="20%" x2="80%" y2="80%">
+                              <stop offset="0%" stopColor={pageNumber <= 1 || isFlipping ? "#E5E7EB" : "#7DD3FC"} />
+                              <stop offset="50%" stopColor={pageNumber <= 1 || isFlipping ? "#D1D5DB" : "#38BDF8"} />
+                              <stop offset="100%" stopColor={pageNumber <= 1 || isFlipping ? "#9CA3AF" : "#0EA5E9"} />
+                            </linearGradient>
+                            <filter id="leftArrowShadow" x="-20%" y="-20%" width="140%" height="140%">
+                              <feDropShadow dx="2" dy="3" stdDeviation="4" floodOpacity="0.25"/>
+                            </filter>
+                          </defs>
+                          {/* Main arrow body with rounded corners */}
+                          <path
+                            d="M35 10 C38 8, 42 8, 45 10 C48 12, 48 15, 45 17 L32 25 L45 33 C48 35, 48 38, 45 40 C42 42, 38 42, 35 40 L18 30 C15 28, 15 22, 18 20 L35 10 Z"
+                            fill="url(#leftArrowGradient)"
+                            stroke={pageNumber <= 1 || isFlipping ? "#9CA3AF" : "#4B5563"}
+                            strokeWidth="2"
+                            filter="url(#leftArrowShadow)"
+                            className="transition-all duration-200"
+                          />
+                          {/* Inner highlight for 3D effect */}
+                          <path
+                            d="M35 12 C37 11, 39 11, 41 12 C42 13, 42 14, 41 15 L31 22 L41 29 C42 30, 42 31, 41 32 C39 33, 37 33, 35 32 L22 26 C21 25, 21 23, 22 22 L35 12 Z"
+                            fill="rgba(255,255,255,0.3)"
+                            className="transition-all duration-200"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+
                     {/* 왼쪽 책갈피 영역 */}
                     <div className="flex flex-col justify-start items-center mr-0 relative z-50" style={{ pointerEvents: 'none' }}>
                       {/* 읽은 페이지들 (책갈피) */}
@@ -906,6 +956,56 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                           </div>
                         </div>
                       </div>
+                    </div>
+
+                    {/* 오른쪽 다음 페이지 화살표 */}
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 z-[100]" style={{right: "1.1rem"}}>
+                      <button
+                        onClick={() => {
+                          if (isFlipping || pageNumber >= numPages) return
+                          setIsFlipping(true)
+                          setFlipDirection('next')
+                          setTimeout(() => {
+                            setPageLoaded(false)
+                            setPageNumber(Math.min(numPages, pageNumber + 1))
+                            setTimeout(() => {
+                              setIsFlipping(false)
+                              setFlipDirection(null)
+                            }, 600)
+                          }, 200)
+                        }}
+                        disabled={pageNumber >= numPages || isFlipping}
+                        className="transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-110"
+                        title="다음 페이지"
+                      >
+                        <svg width="60" height="50" viewBox="0 0 60 50" className="drop-shadow-lg">
+                          <defs>
+                            <linearGradient id="rightArrowGradient" x1="20%" y1="20%" x2="80%" y2="80%">
+                              <stop offset="0%" stopColor={pageNumber >= numPages || isFlipping ? "#E5E7EB" : "#7DD3FC"} />
+                              <stop offset="50%" stopColor={pageNumber >= numPages || isFlipping ? "#D1D5DB" : "#38BDF8"} />
+                              <stop offset="100%" stopColor={pageNumber >= numPages || isFlipping ? "#9CA3AF" : "#0EA5E9"} />
+                            </linearGradient>
+                            <filter id="rightArrowShadow" x="-20%" y="-20%" width="140%" height="140%">
+                              <feDropShadow dx="2" dy="3" stdDeviation="4" floodOpacity="0.25"/>
+                            </filter>
+                          </defs>
+                          {/* Main arrow body with rounded corners */}
+                          <path
+                            d="M25 10 C22 8, 18 8, 15 10 C12 12, 12 15, 15 17 L28 25 L15 33 C12 35, 12 38, 15 40 C18 42, 22 42, 25 40 L42 30 C45 28, 45 22, 42 20 L25 10 Z"
+                            fill="url(#rightArrowGradient)"
+                            stroke={pageNumber >= numPages || isFlipping ? "#9CA3AF" : "#4B5563"}
+                            strokeWidth="2"
+                            filter="url(#rightArrowShadow)"
+                            className="transition-all duration-200"
+                          />
+                          {/* Inner highlight for 3D effect */}
+                          <path
+                            d="M25 12 C23 11, 21 11, 19 12 C18 13, 18 14, 19 15 L29 22 L19 29 C18 30, 18 31, 19 32 C21 33, 23 33, 25 32 L38 26 C39 25, 39 23, 38 22 L25 12 Z"
+                            fill="rgba(255,255,255,0.3)"
+                            className="transition-all duration-200"
+                          />
+                        </svg>
+                      </button>
                     </div>
                   </div>
 
