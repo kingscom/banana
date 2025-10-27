@@ -69,7 +69,7 @@ const HighlightOverlay = React.memo(function HighlightOverlay({ highlights, page
         if (highlight.rectangles && Array.isArray(highlight.rectangles) && highlight.rectangles.length > 0) {
           // 다각형 하이라이트 (여러 직사각형)
           rawRectangles = highlight.rectangles.map(rect => ({
-            x: Math.max(0, rect.x * displayWidth + 15),
+            x: Math.max(0, rect.x * displayWidth + 17),
             y: Math.max(0, rect.y * displayHeight + 17),
             width: Math.max(10, rect.width * displayWidth),
             height: Math.max(8, rect.height * displayHeight)
@@ -77,7 +77,7 @@ const HighlightOverlay = React.memo(function HighlightOverlay({ highlights, page
         } else {
           // 기존 단일 직사각형 하이라이트 또는 잘못된 rectangles 데이터
           rawRectangles = [{
-            x: Math.max(0, highlight.x * displayWidth + 15),
+            x: Math.max(0, highlight.x * displayWidth + 17),
             y: Math.max(0, highlight.y * displayHeight + 17),
             width: Math.max(10, highlight.width * displayWidth),
             height: Math.max(8, highlight.height * displayHeight)
@@ -529,23 +529,51 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
       
       // Range의 모든 직사각형 영역 가져오기 (여러 줄 선택 시 다각형)
       const rects = range.getClientRects()
-      const rectangles = []
+      const rawRectangles = []
       
+      // 먼저 모든 사각형을 상대 좌표로 변환
       for (let i = 0; i < rects.length; i++) {
         const rect = rects[i]
         if (rect.width > 0 && rect.height > 0) {
-          // 각 직사각형을 상대 좌표로 변환
           const relativeX = Math.max(0, Math.min(1, (rect.left - canvasRect.left) / canvasRect.width))
           const relativeY = Math.max(0, Math.min(1, (rect.top - canvasRect.top) / canvasRect.height))
           const relativeWidth = Math.max(0.01, Math.min(1, rect.width / canvasRect.width))
           const relativeHeight = Math.max(0.01, Math.min(1, rect.height / canvasRect.height))
           
-          rectangles.push({
+          rawRectangles.push({
             x: relativeX,
             y: relativeY, 
             width: relativeWidth,
             height: relativeHeight
           })
+        }
+      }
+      
+      // 같은 줄의 사각형들을 정규화 (비슷한 Y값과 height를 동일하게 맞춤)
+      const rectangles: Array<{x: number, y: number, width: number, height: number}> = []
+      const tolerance = 0.01 // 상대 좌표 기준 허용 오차 (약 1%)
+      
+      // Y값 기준으로 정렬
+      const sortedRects = rawRectangles.sort((a, b) => a.y - b.y)
+      
+      for (const rect of sortedRects) {
+        // 같은 줄에 있는 기존 직사각형 그룹 찾기
+        const existingLine = rectangles.find(existing => 
+          Math.abs(existing.y - rect.y) <= tolerance && 
+          Math.abs(existing.height - rect.height) <= tolerance
+        )
+        
+        if (existingLine) {
+          // 같은 줄이면 Y값과 height를 기존 줄과 동일하게 정규화하고 별도 사각형으로 추가
+          rectangles.push({
+            x: rect.x,
+            y: existingLine.y, // 같은 줄의 Y값으로 정규화
+            width: rect.width,
+            height: existingLine.height // 같은 줄의 height로 정규화
+          })
+        } else {
+          // 새로운 줄이면 그대로 추가
+          rectangles.push({ ...rect })
         }
       }
       
