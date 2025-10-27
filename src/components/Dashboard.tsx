@@ -748,7 +748,14 @@ export default function Dashboard() {
                   return (
                     <button
                       key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
+                      onClick={() => {
+                        setActiveTab(tab.id)
+                        // 대시보드 클릭 시 데이터 새로고침
+                        if (tab.id === 'dashboard' && user) {
+                          console.log('🔄 대시보드 클릭 - 하이라이트 데이터 새로고침 시작')
+                          loadUserData()
+                        }
+                      }}
                       className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl text-left transition-all duration-200 ${
                         activeTab === tab.id
                           ? 'bg-gradient-to-r from-amber-100 to-orange-100 text-amber-900 shadow-sm'
