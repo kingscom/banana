@@ -745,8 +745,8 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
         setTimeout(() => {
           setIsFlipping(false)
           setFlipDirection(null)
-        }, 800)
-      }, 400)
+        }, 900)
+      }, 600)
     }
   }
 
@@ -1072,8 +1072,8 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                             setTimeout(() => {
                               setIsFlipping(false)
                               setFlipDirection(null)
-                            }, 800)
-                          }, 400)
+                            }, 900)
+                          }, 600)
                         }}
                         disabled={pageNumber <= 1 || isFlipping}
                         className="flex items-center space-x-2 px-4 py-2 bg-white text-gray-700 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
@@ -1117,8 +1117,8 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                             setTimeout(() => {
                               setIsFlipping(false)
                               setFlipDirection(null)
-                            }, 800)
-                          }, 400)
+                            }, 900)
+                          }, 600)
                         }}
                         disabled={pageNumber >= numPages || isFlipping}
                         className="flex items-center space-x-2 px-4 py-2 bg-white text-gray-700 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
@@ -1164,8 +1164,8 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                             setTimeout(() => {
                               setIsFlipping(false)
                               setFlipDirection(null)
-                            }, 600)
-                          }, 200)
+                            }, 900)
+                          }, 600)
                         }}
                         disabled={pageNumber <= 1 || isFlipping}
                         className="transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-110"
@@ -1240,7 +1240,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                       onMouseUp={handleTextSelection}
                       onClick={handleTextSelection}
                       onKeyUp={handleTextSelection}
-                      className={`relative bg-white rounded-lg border border-gray-200 shadow-lg pdf-container flex justify-center book-container transition-all duration-500 ease-in-out z-10 ${
+                      className={`relative bg-white rounded-lg border border-gray-200 shadow-lg pdf-container flex justify-center book-container page-curl-effect transition-all duration-500 ease-in-out z-10 ${
                         isFlipping && flipDirection === 'next' ? 'page-flip-next' :
                         isFlipping && flipDirection === 'prev' ? 'page-flip-prev' :
                         !pageLoaded ? 'opacity-0 transform scale-95' : 'opacity-100 transform scale-100'
@@ -1348,8 +1348,8 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                             setTimeout(() => {
                               setIsFlipping(false)
                               setFlipDirection(null)
-                            }, 600)
-                          }, 200)
+                            }, 900)
+                          }, 600)
                         }}
                         disabled={pageNumber >= numPages || isFlipping}
                         className="transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-110"
