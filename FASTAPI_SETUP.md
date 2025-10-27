@@ -31,7 +31,7 @@ FASTAPI_BASE_URL=http://host.docker.internal:8000
 
 FastAPI 서버는 다음 엔드포인트를 제공해야 합니다:
 
-### POST `/summarize-pdf`
+### 1. POST `/summarize-pdf` (페이지별 요약)
 - **파라미터**: 
   - `file`: PDF 파일 (multipart/form-data)
   - `page_number`: 페이지 번호 (string)
@@ -52,13 +52,41 @@ FastAPI 서버는 다음 엔드포인트를 제공해야 합니다:
 }
 ```
 
+### 2. POST `/summarize-full-document` (전체 문서 요약)
+- **파라미터**:
+  - `file`: PDF 파일 (multipart/form-data)
+  - `user_id`: 사용자 ID (string)
+  - `document_id`: 문서 ID (string)
+
+- **응답 형식**:
+```json
+{
+  "success": true,
+  "summary": "전체 문서 요약 내용...",
+  "document_id": "doc-123",
+  "user_id": "user-456",
+  "processing_time": 15.2,
+  "model_used": "gpt-3.5-turbo",
+  "confidence": 0.92,
+  "total_pages": 10,
+  "word_count": 1500
+}
+```
+
 ## 사용 방법
 
+### 페이지별 요약
 1. FastAPI 서버가 실행 중인지 확인
 2. `.env.local`에 올바른 `FASTAPI_BASE_URL` 설정
 3. Next.js 앱에서 PDF를 열고 "AI 요약" 버튼 클릭
 4. 현재 페이지가 추출되어 FastAPI 서버로 전송됨
 5. AI 요약 결과를 받아 화면에 표시
+
+### 전체 문서 요약 (자동)
+1. PDF 파일을 업로드
+2. 업로드 완료 후 백그라운드에서 자동으로 전체 문서 요약 처리
+3. 요약 완료 시 `documents` 테이블의 `summary` 컬럼에 저장
+4. FastAPI 서버에 연결할 수 없는 경우 자동으로 스킵 (UI 영향 없음)
 
 ## 오류 처리
 

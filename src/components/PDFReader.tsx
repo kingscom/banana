@@ -151,6 +151,9 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
   const { user, loading: authLoading } = useAuth()
 
   const [loadingFiles, setLoadingFiles] = useState<Set<string>>(new Set())
+  const [showDocumentSummary, setShowDocumentSummary] = useState<boolean>(false)
+  const [documentSummary, setDocumentSummary] = useState<string>('')
+  const [summaryCheckInterval, setSummaryCheckInterval] = useState<NodeJS.Timeout | null>(null)
 
   // 서버에서 파일을 로드하는 함수 (중복 로딩 방지)
   const loadFileFromServer = async (document: any): Promise<File | null> => {
@@ -255,6 +258,12 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
     if (!highlightsLoaded && selectedPDFId && user) {
       setHighlightsLoaded(true) // 먼저 플래그를 설정하여 중복 호출 방지
       loadHighlights()
+      loadDocumentSummary().then(() => {
+        // 요약이 없으면 주기적 체크 시작
+        if (!documentSummary || !documentSummary.trim()) {
+          startSummaryCheck()
+        }
+      })
     }
     
     // 초기 페이지가 지정된 경우 해당 페이지로 이동
@@ -296,6 +305,97 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
       setHighlights(formattedHighlights)
     } catch (error) {
       console.error('하이라이트 로드 중 오류:', error)
+    }
+  }
+
+  // 문서 요약 불러오기
+  const loadDocumentSummary = async () => {
+    if (!selectedPDFId || !user) {
+      console.log('문서 요약 로드 스킵:', { selectedPDFId: !!selectedPDFId, user: !!user })
+      return
+    }
+
+    try {
+      console.log('🔍 문서 요약 로드 시작:', { selectedPDFId, userId: user.id })
+      
+      const response = await fetch(`/api/documents?id=${selectedPDFId}&user_id=${user.id}`)
+      const result = await response.json()
+
+      console.log('📄 문서 요약 API 응답:', {
+        ok: response.ok,
+        status: response.status,
+        hasData: !!result.data,
+        hasSummary: !!(result.data?.summary),
+        summaryLength: result.data?.summary?.length || 0,
+        fullResult: result
+      })
+
+      if (response.ok && result.data && result.data.summary && result.data.summary.trim()) {
+        setDocumentSummary(result.data.summary.trim())
+        console.log('✅ 문서 요약 로드 완료:', result.data.summary.length, '문자')
+        stopSummaryCheck() // 요약이 있으면 체크 중단
+      } else {
+        setDocumentSummary('')
+        console.log('⚠️ 문서 요약이 없습니다:', {
+          responseOk: response.ok,
+          hasData: !!result.data,
+          hasSummary: !!(result.data?.summary),
+          summaryContent: result.data?.summary
+        })
+        // 요약이 없으면 주기적 체크 시작 (이미 실행 중이 아닐 때만)
+        if (!summaryCheckInterval) {
+          startSummaryCheck()
+        }
+      }
+    } catch (error) {
+      console.error('❌ 문서 요약 로드 중 오류:', error)
+      setDocumentSummary('')
+    }
+  }
+
+  // 문서 요약 팝업 열기
+  const openDocumentSummary = () => {
+    setShowDocumentSummary(true)
+  }
+
+  // 문서 요약 주기적 체크 시작
+  const startSummaryCheck = () => {
+    if (summaryCheckInterval) {
+      clearInterval(summaryCheckInterval)
+    }
+
+    const interval = setInterval(async () => {
+      if (!selectedPDFId || !user) return
+
+      try {
+        const response = await fetch(`/api/documents?id=${selectedPDFId}&user_id=${user.id}`)
+        const result = await response.json()
+
+        if (response.ok && result.data && result.data.summary && result.data.summary.trim()) {
+          const newSummary = result.data.summary.trim()
+          if (newSummary !== documentSummary) {
+            console.log('🔄 새로운 문서 요약 감지됨:', newSummary.length, '문자')
+            setDocumentSummary(newSummary)
+            // 요약이 생성되면 체크 중단
+            clearInterval(interval)
+            setSummaryCheckInterval(null)
+          }
+        }
+      } catch (error) {
+        console.error('문서 요약 체크 중 오류:', error)
+      }
+    }, 5000) // 5초마다 체크
+
+    setSummaryCheckInterval(interval)
+    console.log('📡 문서 요약 주기적 체크 시작 (5초 간격)')
+  }
+
+  // 문서 요약 체크 중단
+  const stopSummaryCheck = () => {
+    if (summaryCheckInterval) {
+      clearInterval(summaryCheckInterval)
+      setSummaryCheckInterval(null)
+      console.log('⏹️ 문서 요약 체크 중단')
     }
   }
 
@@ -590,13 +690,14 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
       const summaryFormData = new FormData()
       summaryFormData.append('file', extractedPdfBlob, `page_${pageNumber}.pdf`)
       summaryFormData.append('document_id', selectedPDFId || '')
+      summaryFormData.append('full', 'false')
       
       // 외부 FastAPI 서버로 직접 요청
       const FASTAPI_BASE_URL = process.env.NEXT_PUBLIC_FASTAPI_BASE_URL || 'http://localhost:8000'
       
       const summaryResponse = await fetch(`${FASTAPI_BASE_URL}/summarize`, {
         method: 'POST',
-        body: summaryFormData
+        body: summaryFormData,
       })
 
       if (!summaryResponse.ok) {
@@ -684,6 +785,8 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
   useEffect(() => {
     setHighlightsLoaded(false)
     setHighlights([]) // 기존 하이라이트 클리어
+    setDocumentSummary('') // 문서 요약도 클리어
+    stopSummaryCheck() // 기존 체크 중단
   }, [selectedPDFId])
 
   // 타겟 하이라이트로 스크롤
@@ -710,8 +813,65 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
     }
   }, [targetHighlightId, highlights, pageLoaded, pageNumber])
 
+  // 컴포넌트 언마운트 시 인터벌 정리
+  useEffect(() => {
+    return () => {
+      stopSummaryCheck()
+    }
+  }, [])
+
   return (
     <div className="flex h-screen library-background">
+      {/* 문서 요약 팝업 모달 */}
+      {showDocumentSummary && documentSummary && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[200]">
+          <div className="bg-white rounded-xl p-6 max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900">📄 전체 문서 AI 요약</h3>
+                  <p className="text-sm text-gray-500">{pdfs[0]?.name || '문서'}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDocumentSummary(false)}
+                className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="overflow-y-auto max-h-[60vh] bg-gray-50 rounded-lg p-6 border">
+              <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-line leading-relaxed">
+                {documentSummary}
+              </div>
+            </div>
+            
+            <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center">
+              <div className="text-sm text-gray-500">
+                <span className="inline-flex items-center space-x-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>AI가 생성한 전체 문서 요약입니다</span>
+                </span>
+              </div>
+              <button
+                onClick={() => setShowDocumentSummary(false)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PDF Viewer */}
       <div className="flex-1 flex">
         <div className="flex-1 overflow-auto p-6 custom-scrollbar">
@@ -741,16 +901,43 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                         </p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => setShowHighlights(!showHighlights)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        showHighlights 
-                          ? 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200' 
-                          : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      하이라이트 {showHighlights ? '숨기기' : '보기'}
-                    </button>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={openDocumentSummary}
+                        disabled={!documentSummary}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          documentSummary && documentSummary.trim()
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                            : summaryCheckInterval
+                            ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                            : 'bg-gray-50 text-gray-400 border border-gray-200 cursor-not-allowed'
+                        }`}
+                        title={
+                          documentSummary && documentSummary.trim() 
+                            ? `전체 문서 AI 요약 보기 (${documentSummary.length}자)` 
+                            : summaryCheckInterval
+                            ? 'AI 요약 생성 대기 중... (10초마다 확인)'
+                            : 'AI 요약이 아직 생성되지 않았습니다'
+                        }
+                      >
+                        {documentSummary && documentSummary.trim() 
+                          ? '📄 AI 요약보기 ✅' 
+                          : summaryCheckInterval 
+                          ? '📄 AI 요약보기 ⏱️' 
+                          : '📄 AI 요약보기'
+                        }
+                      </button>
+                      <button
+                        onClick={() => setShowHighlights(!showHighlights)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          showHighlights 
+                            ? 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200' 
+                            : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        하이라이트 {showHighlights ? '숨기기' : '보기'}
+                      </button>
+                    </div>
                   </div>
 
                   {/* 페이지 네비게이션 */}
@@ -839,7 +1026,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                         onClick={generateSummary}
                         className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors font-medium"
                       >
-                        AI 요약
+                        Page AI 요약
                       </button>
                     </div>
                   </div>

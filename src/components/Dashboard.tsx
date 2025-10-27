@@ -225,11 +225,112 @@ export default function Dashboard() {
         // 문서 목록 새로고침 (데이터베이스에서 다시 로드)
         await loadUserData()
         
-        // 업로드된 문서를 바로 선택하고 PDF Reader로 이동
+        // 백그라운드에서 전체 문서 요약 처리 먼저 시작 (UI 차단 없음)
         if (result.document) {
-          setSelectedDocument(result.document)
-          setActiveTab('reader')
-          console.log('업로드된 문서 자동 선택:', result.document.title)
+          console.log('🤖 백그라운드에서 전체 문서 요약 시작:', result.document.title)
+          
+          // 비동기로 실행하여 UI를 차단하지 않음
+          const backgroundSummarize = async () => {
+            try {
+              // FormData로 외부 FastAPI에 직접 전송
+              const summaryFormData = new FormData()
+              summaryFormData.append('file', file, file.name)
+              summaryFormData.append('document_id', result.document.id)
+              
+              // 외부 FastAPI 서버로 직접 요청
+              const FASTAPI_BASE_URL = process.env.NEXT_PUBLIC_FASTAPI_BASE_URL || 'http://localhost:8000'
+              
+              console.log('🚀 FastAPI 요청 시작:', {
+                url: `${FASTAPI_BASE_URL}/summarize`,
+                fileName: file.name,
+                documentId: result.document.id,
+                fileSize: file.size
+              })
+              
+              const summaryResponse = await fetch(`${FASTAPI_BASE_URL}/summarize`, {
+                method: 'POST',
+                body: summaryFormData,
+              })
+              
+              console.log('📡 FastAPI 응답 상태:', {
+                status: summaryResponse.status,
+                statusText: summaryResponse.statusText,
+                ok: summaryResponse.ok
+              })
+
+              if (summaryResponse.ok) {
+                const summaryResult = await summaryResponse.json()
+                console.log('✅ 백그라운드 문서 요약 완료:', {
+                  document: result.document.title,
+                  summaryLength: summaryResult.summary?.length || 0,
+                  fullResult: summaryResult
+                })
+                
+                // 요약 결과를 데이터베이스에 저장
+                if (summaryResult.summary) {
+                  console.log('💾 데이터베이스 저장 시작...')
+                  const updateResponse = await fetch(`/api/documents`, {
+                    method: 'PATCH',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      id: result.document.id,
+                      summary: summaryResult.summary,
+                      userId: user.id
+                    })
+                  })
+                  
+                  if (updateResponse.ok) {
+                    console.log('✅ 문서 요약 데이터베이스 저장 완료')
+                    await loadUserData() // 문서 목록 새로고침
+                  } else {
+                    const dbError = await updateResponse.json()
+                    console.error('❌ 데이터베이스 저장 실패:', dbError)
+                  }
+                } else {
+                  console.warn('⚠️ FastAPI 응답에 summary 필드가 없음:', summaryResult)
+                }
+              } else {
+                console.error('❌ FastAPI 요청 실패:', {
+                  status: summaryResponse.status,
+                  statusText: summaryResponse.statusText
+                })
+                
+                try {
+                  const errorText = await summaryResponse.text()
+                  console.error('❌ FastAPI 오류 내용:', errorText)
+                } catch (parseError) {
+                  console.error('❌ FastAPI 오류 파싱 실패:', parseError)
+                }
+              }
+            } catch (error) {
+              console.error('❌ 백그라운드 문서 요약 중 네트워크/파싱 오류:', {
+                error: error instanceof Error ? error.message : 'Unknown error',
+                stack: error instanceof Error ? error.stack : undefined,
+                type: error instanceof TypeError ? 'Network Error' : 'Other Error'
+              })
+              
+              // 네트워크 오류인 경우 추가 정보 제공
+              if (error instanceof TypeError && error.message.includes('fetch')) {
+                console.error('🌐 FastAPI 서버 연결 실패. 확인사항:')
+                console.error('1. FastAPI 서버가 실행 중인가?')
+                console.error('2. URL이 올바른가:', `${process.env.NEXT_PUBLIC_FASTAPI_BASE_URL || 'http://localhost:8000'}/summarize`)
+                console.error('3. CORS 설정이 되어있는가?')
+                console.error('4. 방화벽/네트워크 설정 확인')
+              }
+            }
+          }
+
+          // 백그라운드에서 바로 실행 (await 없이)
+          backgroundSummarize()
+          
+          // 백그라운드 작업 시작 후 UI 업데이트 (약간의 지연)
+          setTimeout(() => {
+            setSelectedDocument(result.document)
+            setActiveTab('reader')
+            console.log('업로드된 문서 자동 선택:', result.document.title)
+          }, 100) // 100ms 지연으로 백그라운드 작업이 확실히 시작되도록 함
         }
         
         console.log('파일 업로드 및 데이터베이스 저장 완료:', result.document.title)
