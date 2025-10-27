@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
       position_y,
       position_width,
       position_height,
+      rectangles,
       user_id
     } = body
 
@@ -71,7 +72,8 @@ export async function POST(request: NextRequest) {
       position_x,
       position_y,
       position_width,
-      position_height
+      position_height,
+      rectangles: rectangles || null
     }
 
     console.log('저장할 하이라이트 데이터:', insertData)

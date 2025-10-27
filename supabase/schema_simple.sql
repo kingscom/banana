@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS highlights (
   position_y FLOAT NOT NULL,
   position_width FLOAT NOT NULL,
   position_height FLOAT NOT NULL,
+  rectangles TEXT, -- JSON string containing array of rectangles for polygon highlights
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

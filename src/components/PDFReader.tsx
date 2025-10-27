@@ -27,6 +27,7 @@ interface Highlight {
   y: number
   width: number
   height: number
+  rectangles?: Array<{x: number, y: number, width: number, height: number}> // 다각형 지원
   created_at?: string
 }
 
@@ -38,94 +39,147 @@ interface Note {
   y: number
 }
 
-// 하이라이트 오버레이 컴포넌트
+// 하이라이트 오버레이 컴포넌트 - 다각형 지원
 const HighlightOverlay = React.memo(function HighlightOverlay({ highlights, pageNumber, pageLoaded }: { highlights: Highlight[], pageNumber: number, pageLoaded: boolean }) {
-  const [overlayHighlights, setOverlayHighlights] = useState<Array<Highlight & { actualX: number, actualY: number, actualWidth: number, actualHeight: number }>>([])
+  const [overlayHighlights, setOverlayHighlights] = useState<Array<Highlight & { actualRectangles: Array<{x: number, y: number, width: number, height: number}> }>>([])
 
   useEffect(() => {
     const updateHighlightPositions = () => {
-      // 페이지가 완전히 로드되지 않았으면 하이라이트를 숨김
-      if (!pageLoaded) {
+      if (!pageLoaded || highlights.length === 0) {
         setOverlayHighlights([])
         return
       }
 
-      // PDF 페이지의 실제 렌더링 영역을 찾기
-      const pdfCanvas = document.querySelector('.react-pdf__Page__canvas')
-      const textLayer = document.querySelector('.react-pdf__Page__textContent')
-      const pdfPage = document.querySelector('.react-pdf__Page')
+      // PDF Canvas를 직접 찾아서 그 크기를 기준으로 계산
+      const pdfCanvas = document.querySelector('.react-pdf__Page__canvas') as HTMLCanvasElement
       
-      // 가장 정확한 기준점 선택
-      const pageElement = (pdfCanvas || textLayer || pdfPage)
-      const pageRect = pageElement?.getBoundingClientRect()
-      
-      if (!pageRect || highlights.length === 0) {
+      if (!pdfCanvas) {
         setOverlayHighlights([])
         return
       }
+
+      // Canvas의 실제 표시 크기 (CSS 크기)
+      const canvasRect = pdfCanvas.getBoundingClientRect()
+      const displayWidth = canvasRect.width
+      const displayHeight = canvasRect.height
       
       const updatedHighlights = highlights.map(highlight => {
-        // PDF 페이지 크기를 기준으로 상대적 위치를 픽셀로 변환 (X 위치 대폭 조정)
-        const actualX = (highlight.x * pageRect.width) + 15  // X 위치를 20px 왼쪽으로 조정
-        const actualY = highlight.y * pageRect.height  + 15
-        const actualWidth = highlight.width * pageRect.width
-        const actualHeight = highlight.height * pageRect.height
+        let rawRectangles = []
+        
+        if (highlight.rectangles && Array.isArray(highlight.rectangles) && highlight.rectangles.length > 0) {
+          // 다각형 하이라이트 (여러 직사각형)
+          rawRectangles = highlight.rectangles.map(rect => ({
+            x: Math.max(0, rect.x * displayWidth + 15),
+            y: Math.max(0, rect.y * displayHeight + 17),
+            width: Math.max(10, rect.width * displayWidth),
+            height: Math.max(8, rect.height * displayHeight)
+          }))
+        } else {
+          // 기존 단일 직사각형 하이라이트 또는 잘못된 rectangles 데이터
+          rawRectangles = [{
+            x: Math.max(0, highlight.x * displayWidth + 15),
+            y: Math.max(0, highlight.y * displayHeight + 17),
+            width: Math.max(10, highlight.width * displayWidth),
+            height: Math.max(8, highlight.height * displayHeight)
+          }]
+        }
+        
+        // 같은 행(Y값과 height가 같은)의 사각형들을 합치기
+        const mergedRectangles: Array<{x: number, y: number, width: number, height: number}> = []
+        const tolerance = 5 // Y값 허용 오차
+        
+        // Y값 기준으로 정렬
+        const sortedRects = rawRectangles.sort((a, b) => a.y - b.y)
+        
+        for (const rect of sortedRects) {
+          // 같은 행에 있는 기존 직사각형 찾기
+          const existingRow = mergedRectangles.find(merged => 
+            Math.abs(merged.y - rect.y) <= tolerance && 
+            Math.abs(merged.height - rect.height) <= tolerance
+          )
+          
+          if (existingRow) {
+            // 같은 행이면 X값 범위를 확장해서 합치기
+            const minX = Math.min(existingRow.x, rect.x)
+            const maxX = Math.max(existingRow.x + existingRow.width, rect.x + rect.width)
+            existingRow.x = minX
+            existingRow.width = maxX - minX
+          } else {
+            // 새로운 행이면 추가
+            mergedRectangles.push({ ...rect })
+          }
+        }
         
         return {
           ...highlight,
-          actualX,
-          actualY,
-          actualWidth,
-          actualHeight
+          actualRectangles: mergedRectangles
         }
       })
       
       setOverlayHighlights(updatedHighlights)
     }
 
-    // 초기 계산
+    // 즉시 실행
     updateHighlightPositions()
     
-    // 리사이즈 이벤트 리스너
+    // 리사이즈 처리
     const handleResize = () => {
-      setTimeout(updateHighlightPositions, 100) // PDF 렌더링이 완료되기를 기다림
+      setTimeout(updateHighlightPositions, 100)
     }
     
     window.addEventListener('resize', handleResize)
     
-    // PDF 페이지 로드 완료를 위한 단일 타이머 (과도한 재요청 방지)
-    const timeoutId = setTimeout(() => {
-      updateHighlightPositions()
-    }, pageLoaded ? 100 : 500) // 페이지가 로드되었으면 빠르게, 아니면 더 기다림
+    // 지연 재계산
+    const timeout = setTimeout(updateHighlightPositions, 300)
     
     return () => {
       window.removeEventListener('resize', handleResize)
-      clearTimeout(timeoutId)
+      clearTimeout(timeout)
     }
-  }, [highlights.length, pageNumber, pageLoaded]) // 페이지 로드 상태도 감시
+  }, [highlights.length, pageNumber, pageLoaded])
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-20" style={{ 
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%'
-    }}>
+    <div 
+      className="absolute pointer-events-none z-20" 
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%'
+      }}
+    >
       {overlayHighlights.map((highlight, index) => (
-        <div
-          key={highlight.id}
-          data-highlight-id={highlight.id}
-          className="absolute bg-yellow-300 bg-opacity-30 border border-yellow-400 pointer-events-none transition-all duration-300 animate-fade-in"
-          style={{
-            left: `${highlight.actualX}px`,
-            top: `${highlight.actualY}px`,
-            width: `${highlight.actualWidth}px`,
-            height: `${highlight.actualHeight}px`,
-            animationDelay: `${index * 50}ms` // 하이라이트가 순차적으로 나타나도록
-          }}
-          title={highlight.text}
-        />
+        <div key={highlight.id} data-highlight-id={highlight.id} className="absolute">
+          {highlight.actualRectangles.map((rect, rectIndex) => {
+            // 연결된 하이라이트처럼 보이게 하기 위한 스타일링
+            const isFirst = rectIndex === 0
+            const isLast = rectIndex === highlight.actualRectangles.length - 1
+            const isMiddle = !isFirst && !isLast
+            
+            return (
+              <div
+                key={`${highlight.id}-${rectIndex}`}
+                className="absolute pointer-events-none"
+                style={{
+                  left: `${rect.x}px`,
+                  top: `${rect.y}px`,
+                  width: `${rect.width}px`,
+                  height: `${rect.height}px`,
+                  backgroundColor: '#ffeb3b',
+                  opacity: 0.3,
+                  border: 'none',
+                  borderRadius: '0',
+                  boxShadow: 'none',
+                  // 중첩되어도 색이 진해지지 않도록 mix-blend-mode 사용
+                  mixBlendMode: 'multiply',
+                  zIndex: 10
+                }}
+                title={isFirst ? highlight.text : undefined}
+              />
+            )
+          })}
+        </div>
       ))}
     </div>
   )
@@ -233,7 +287,6 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
       if (selection && selection.toString().trim()) {
         setSelectedText(selection.toString().trim())
         setSelection(selection)
-        console.log('텍스트 선택됨:', selection.toString().trim())
       } else if (selectedText) {
         // 선택이 해제되면 일정 시간 후 상태 초기화
         setTimeout(() => {
@@ -288,20 +341,40 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
         return
       }
       
-      const formattedHighlights = result.data.map((h: any) => ({
-        id: h.id,
-        document_id: h.document_id,
-        pageNumber: h.page_number,
-        text: h.selected_text,
-        note: h.note || '',
-        x: h.position_x,
-        y: h.position_y,
-        width: h.position_width,
-        height: h.position_height,
-        created_at: h.created_at
-      }))
+      const formattedHighlights = result.data.map((h: any) => {
+        let rectangles = undefined
+        
+        // rectangles 필드 파싱 (여러 형태 지원)
+        if (h.rectangles) {
+          try {
+            if (typeof h.rectangles === 'string') {
+              const parsed = JSON.parse(h.rectangles)
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                rectangles = parsed
+              }
+            } else if (Array.isArray(h.rectangles)) {
+              rectangles = h.rectangles
+            }
+          } catch (e) {
+            console.warn('rectangles 파싱 실패:', h.rectangles, e)
+          }
+        }
+        
+        return {
+          id: h.id,
+          document_id: h.document_id,
+          pageNumber: h.page_number,
+          text: h.selected_text,
+          note: h.note || '',
+          x: h.position_x || 0,
+          y: h.position_y || 0,
+          width: h.position_width || 0.1,
+          height: h.position_height || 0.02,
+          rectangles: rectangles,
+          created_at: h.created_at
+        }
+      })
       
-      console.log('포맷된 하이라이트:', formattedHighlights)
       setHighlights(formattedHighlights)
     } catch (error) {
       console.error('하이라이트 로드 중 오류:', error)
@@ -441,35 +514,47 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
     }
 
     try {
-      // 선택된 텍스트의 위치 정보 가져오기
+      // 선택된 텍스트의 다각형 영역 정보 가져오기
       const range = currentSelection.getRangeAt(0)
-      const rect = range.getBoundingClientRect()
       
-      // PDF 페이지의 실제 렌더링 영역을 찾기 위해 여러 요소 확인
-      const pdfCanvas = document.querySelector('.react-pdf__Page__canvas')
-      const textLayer = document.querySelector('.react-pdf__Page__textContent') 
-      const pdfPage = document.querySelector('.react-pdf__Page')
+      // PDF Canvas를 직접 찾아서 기준으로 사용
+      const pdfCanvas = document.querySelector('.react-pdf__Page__canvas') as HTMLCanvasElement
       
-      // 가장 정확한 기준점 선택 (Canvas > TextLayer > Page 순)
-      const pageRect = (pdfCanvas || textLayer || pdfPage)?.getBoundingClientRect()
-      
-      if (!pageRect) {
-        console.error('PDF 페이지를 찾을 수 없습니다')
+      if (!pdfCanvas) {
+        alert('PDF 페이지를 찾을 수 없습니다')
         return
       }
+
+      const canvasRect = pdfCanvas.getBoundingClientRect()
       
-      // 위치 정보 로깅 (디버깅 시에만 활성화)
-      // console.log('선택 영역:', { left: rect.left, top: rect.top, width: rect.width, height: rect.height })
-      // console.log('PDF 페이지 영역:', { left: pageRect.left, top: pageRect.top, width: pageRect.width, height: pageRect.height })
+      // Range의 모든 직사각형 영역 가져오기 (여러 줄 선택 시 다각형)
+      const rects = range.getClientRects()
+      const rectangles = []
       
-      // PDF 페이지 크기 기준으로 상대 비율 계산 (0-1 사이 값)
-      const relativeX = (rect.left - pageRect.left) / pageRect.width
-      const relativeY = (rect.top - pageRect.top) / pageRect.height
-      const relativeWidth = rect.width / pageRect.width
-      const relativeHeight = rect.height / pageRect.height
+      for (let i = 0; i < rects.length; i++) {
+        const rect = rects[i]
+        if (rect.width > 0 && rect.height > 0) {
+          // 각 직사각형을 상대 좌표로 변환
+          const relativeX = Math.max(0, Math.min(1, (rect.left - canvasRect.left) / canvasRect.width))
+          const relativeY = Math.max(0, Math.min(1, (rect.top - canvasRect.top) / canvasRect.height))
+          const relativeWidth = Math.max(0.01, Math.min(1, rect.width / canvasRect.width))
+          const relativeHeight = Math.max(0.01, Math.min(1, rect.height / canvasRect.height))
+          
+          rectangles.push({
+            x: relativeX,
+            y: relativeY, 
+            width: relativeWidth,
+            height: relativeHeight
+          })
+        }
+      }
       
-      // 상대 위치 로깅 (디버깅 시에만 활성화)
-      // console.log('상대 위치:', { x: relativeX, y: relativeY, width: relativeWidth, height: relativeHeight })
+      // 첫 번째 직사각형을 기본으로 하되, 다각형 정보도 저장
+      const firstRect = rectangles[0] || { x: 0, y: 0, width: 0.1, height: 0.02 }
+      const relativeX = firstRect.x
+      const relativeY = firstRect.y
+      const relativeWidth = firstRect.width
+      const relativeHeight = firstRect.height
       
       const newHighlight: Highlight = {
         id: crypto.randomUUID(),
@@ -480,7 +565,8 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
         x: relativeX,
         y: relativeY,
         width: relativeWidth,
-        height: relativeHeight
+        height: relativeHeight,
+        rectangles: rectangles // 다각형 정보 저장
       }
 
       // 하이라이트 추가 로깅 (디버깅 시에만 활성화)
@@ -488,12 +574,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
 
       // 먼저 UI에 임시로 추가 (즉시 피드백)
       const tempHighlight = { ...newHighlight }
-      setHighlights(prev => {
-        console.log('현재 하이라이트 개수:', prev.length)
-        const updated = [...prev, tempHighlight]
-        console.log('업데이트된 하이라이트 개수:', updated.length)
-        return updated
-      })
+      setHighlights(prev => [...prev, tempHighlight])
 
       // API를 통해 하이라이트 저장 (상대 비율로 저장)
       const saveData = {
@@ -505,11 +586,10 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
         position_y: relativeY,
         position_width: relativeWidth,
         position_height: relativeHeight,
+        rectangles: JSON.stringify(rectangles), // 다각형 정보를 JSON으로 저장
         user_id: user.id
       }
       
-      console.log('저장할 데이터:', saveData)
-
       const response = await fetch('/api/highlights', {
         method: 'POST',
         headers: {
@@ -519,39 +599,51 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
       })
 
       const result = await response.json()
-      console.log('API 응답:', result)
 
       if (!response.ok) {
-        console.error('하이라이트 저장 오류:', result.error)
         // 저장 실패 시 임시 하이라이트 제거
         setHighlights(prev => prev.filter(h => h.id !== tempHighlight.id))
         alert('하이라이트 저장에 실패했습니다: ' + result.error)
         return
       }
 
-      console.log('하이라이트 저장 성공:', result.data)
-
       // 임시 하이라이트를 실제 저장된 데이터로 교체
       if (result.data) {
+        let savedRectangles = undefined
+        
+        // rectangles 필드 파싱
+        if (result.data.rectangles) {
+          try {
+            if (typeof result.data.rectangles === 'string') {
+              const parsed = JSON.parse(result.data.rectangles)
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                savedRectangles = parsed
+              }
+            } else if (Array.isArray(result.data.rectangles)) {
+              savedRectangles = result.data.rectangles
+            }
+          } catch (e) {
+            console.warn('저장된 rectangles 파싱 실패:', result.data.rectangles, e)
+          }
+        }
+        
         const savedHighlight = {
           id: result.data.id,
           document_id: result.data.document_id,
           pageNumber: result.data.page_number,
           text: result.data.selected_text,
           note: result.data.note || '',
-          x: result.data.position_x,
-          y: result.data.position_y,
-          width: result.data.position_width,
-          height: result.data.position_height,
+          x: result.data.position_x || 0,
+          y: result.data.position_y || 0,
+          width: result.data.position_width || 0.1,
+          height: result.data.position_height || 0.02,
+          rectangles: savedRectangles,
           created_at: result.data.created_at
         }
         
         setHighlights(prev => {
           const filtered = prev.filter(h => h.id !== tempHighlight.id)
-          const updated = [...filtered, savedHighlight]
-          console.log('최종 하이라이트 개수:', updated.length)
-          console.log('저장된 하이라이트:', savedHighlight)
-          return updated
+          return [...filtered, savedHighlight]
         })
       }
       
@@ -560,8 +652,6 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
       
       // 선택 해제
       window.getSelection()?.removeAllRanges()
-      
-      console.log('하이라이트 추가 완료')
     } catch (error) {
       console.error('하이라이트 저장 중 오류:', error)
       alert('하이라이트 저장 중 오류가 발생했습니다.')
@@ -1159,13 +1249,17 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                         pageNumber={pageNumber}
                         renderTextLayer={true}
                         renderAnnotationLayer={false}
-                        className="pdf-page shadow-inner"
+                        className={`pdf-page shadow-inner transition-all duration-300 ${!pageLoaded ? 'loading' : ''}`}
                         onLoadSuccess={() => {
-                          setPageLoaded(true)
-                          console.log('PDF 페이지 로드 완료')
+                          setTimeout(() => {
+                            setPageLoaded(true)
+                          }, 150)
                         }}
-                        onGetTextSuccess={(textItems) => {
-                          console.log('PDF 텍스트 레이어 로드됨:', textItems)
+                        onGetTextSuccess={() => {
+                          // 텍스트 레이어 로드 완료
+                        }}
+                        onRenderSuccess={() => {
+                          // 페이지 렌더링 완료
                         }}
                       />
                     </Document>
