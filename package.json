@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:proxy": "node proxy-server.js",
+    "dev:both": "concurrently \"npm run dev\" \"npm run dev:proxy\"",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -14,16 +16,25 @@
     "@supabase/auth-helpers-react": "^0.5.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.76.1",
+    "@types/form-data": "^2.2.1",
+    "@types/node-fetch": "^2.6.13",
+    "@types/uuid": "^10.0.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
     "firebase": "^10.5.2",
+    "form-data": "^4.0.4",
     "formidable": "^3.5.1",
+    "http-proxy-middleware": "^3.0.5",
     "lucide-react": "^0.292.0",
     "multer": "^1.4.5-lts.1",
     "next": "^14.0.0",
+    "node-fetch": "^3.3.2",
     "openai": "^4.15.4",
     "pdf-lib": "^1.17.1",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
-    "react-pdf": "^7.5.1"
+    "react-pdf": "^7.5.1",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@tailwindcss/line-clamp": "^0.4.4",
@@ -33,6 +44,7 @@
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "autoprefixer": "^10.0.0",
+    "concurrently": "^9.2.1",
     "eslint": "^8.0.0",
     "eslint-config-next": "^14.0.0",
     "postcss": "^8.0.0",

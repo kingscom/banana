@@ -22,11 +22,11 @@
 2. **이름**: `AI Knowledge Factory Web Client`
 3. **승인된 JavaScript 원본**:
    ```
-   http://localhost:3001
+   http://localhost:3000
    ```
 4. **승인된 리디렉션 URI**:
    ```
-   http://localhost:3001/auth/callback
+   http://localhost:3000/auth/callback
    ```
 5. **만들기** 클릭
 
@@ -55,13 +55,11 @@
 3. **승인된 리디렉션 URI**에 다음 모두 추가:
    ```
    https://yyntizkazvpntnfngltl.supabase.co/auth/v1/callback
-   http://localhost:3001/auth/callback
    http://localhost:3000/auth/callback
    ```
-4. **승인된 JavaScript 원본**에 다음 모두 추가:
+4. **승인된 JavaScript 원본**에 다음 추가:
    ```
-   http://localhost:3001
-   http://localhost:3000  
+   http://localhost:3000
    ```
 5. 저장
 
@@ -73,18 +71,30 @@
 # Google OAuth Configuration
 GOOGLE_CLIENT_ID=your-google-client-id-here
 GOOGLE_CLIENT_SECRET=your-google-client-secret-here
+
+# Proxy Server Configuration (외부 접근용)
+PROXY_HOST=10.37.173.52
+PROXY_PORT=3001
+PROXY_TARGET=http://localhost:3000
 ```
 
 ## 4. 테스트
 
+### 방법 1: 프록시 서버 사용 (권장)
+1. 프록시와 개발 서버 동시 실행: `npm run dev:both`
+2. 환경변수에 설정된 주소로 접속: `http://{PROXY_HOST}:{PROXY_PORT}` (기본: http://10.37.173.52:3001)
+3. "Google로 로그인" 버튼 클릭
+4. Google 계정으로 로그인 테스트
+
+### 방법 2: localhost만 사용
 1. 개발 서버 실행: `npm run dev`
-2. http://localhost:3001 접속
+2. http://localhost:3000 접속
 3. "Google로 로그인" 버튼 클릭
 4. Google 계정으로 로그인 테스트
 
 ## 주의사항
 
-- **로컬 개발**: `http://localhost:3001`만 사용
+- **로컬 개발**: Google OAuth는 `http://localhost:3000`만 사용, 외부 접근은 프록시(`http://10.37.173.52:3001`) 사용
 - **배포 시**: 실제 도메인을 Google Cloud Console과 Supabase에 모두 추가 필요
 - **보안**: `.env.local` 파일은 절대 Git에 커밋하지 않기
 - **테스트 사용자**: Google OAuth 동의 화면에서 테스트 사용자 추가 가능

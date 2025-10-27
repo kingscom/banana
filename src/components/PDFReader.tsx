@@ -543,24 +543,92 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
   }
 
   const generateSummary = async () => {
-    if (!selectedPDF) return
+    if (!selectedPDF || !user) return
     
     setIsLoadingSummary(true)
+    setAiSummary('') // 이전 요약 초기화
     
     try {
-      // AI 요약 API 호출 시뮬레이션
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      setAiSummary(`이 문서의 주요 내용:
+      console.log('🔄 AI 요약 생성 시작:', { 
+        page: pageNumber, 
+        document: selectedPDFId,
+        fileName: selectedPDF.name 
+      })
 
-1. **핵심 개념**: PDF 문서 처리 및 AI 기반 학습 도구 구현
-2. **주요 기능**: 
-   - 문서 업로드 및 뷰어 기능
-   - 하이라이트 및 노트 작성
-   - AI 기반 요약 및 질의응답
-3. **기술적 특징**: React와 Node.js를 활용한 통합 플랫폼
-4. **사용자 경험**: 직관적인 인터페이스와 Google 로그인 연동
+      // 1단계: 현재 페이지의 PDF 추출
+      const formData = new FormData()
+      formData.append('pdf', selectedPDF)
+      formData.append('pageNumber', pageNumber.toString())
+      formData.append('userId', user.id)
+      formData.append('documentId', selectedPDFId || '')
 
-이 문서는 현대적인 웹 기술을 활용한 교육용 플랫폼 구축에 대한 포괄적인 가이드를 제공합니다.`)
+      console.log('📄 PDF 페이지 추출 요청 중...')
+      
+      // PDF 페이지 추출 API 호출
+      const extractResponse = await fetch('/api/extract-page', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!extractResponse.ok) {
+        const error = await extractResponse.json()
+        throw new Error(`PDF 페이지 추출 실패: ${error.error || 'Unknown error'}`)
+      }
+
+      const extractResult = await extractResponse.json()
+      console.log('✅ PDF 페이지 추출 성공:', extractResult)
+
+      // 2단계: FastAPI로 AI 요약 요청 (Base64 데이터를 Blob으로 변환)
+      console.log('🤖 FastAPI AI 요약 요청 중...')
+      
+      // Base64 데이터를 Blob으로 변환
+      const base64Data = extractResult.pdfData
+      const pdfBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
+      const extractedPdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' })
+      
+      // FormData로 외부 FastAPI에 직접 전송
+      const summaryFormData = new FormData()
+      summaryFormData.append('file', extractedPdfBlob, `page_${pageNumber}.pdf`)
+      summaryFormData.append('document_id', selectedPDFId || '')
+      
+      // 외부 FastAPI 서버로 직접 요청
+      const FASTAPI_BASE_URL = process.env.NEXT_PUBLIC_FASTAPI_BASE_URL || 'http://localhost:8000'
+      
+      const summaryResponse = await fetch(`${FASTAPI_BASE_URL}/summarize`, {
+        method: 'POST',
+        body: summaryFormData
+      })
+
+      if (!summaryResponse.ok) {
+        let errorMessage = 'Unknown error'
+        try {
+          const error = await summaryResponse.json()
+          errorMessage = error.detail || error.message || error.error || `HTTP ${summaryResponse.status}`
+        } catch {
+          errorMessage = `HTTP ${summaryResponse.status} - ${summaryResponse.statusText}`
+        }
+        throw new Error(`AI 요약 요청 실패: ${errorMessage}`)
+      }
+
+      const summaryResult = await summaryResponse.json()
+      console.log('✅ FastAPI에서 AI 요약 완료:', summaryResult)
+
+      // FastAPI 응답 형식에 맞게 요약 텍스트 추출
+      setAiSummary(summaryResult.summary || summaryResult.text || summaryResult.result || '요약을 생성할 수 없습니다.')
+      
+    } catch (error) {
+      console.error('❌ AI 요약 생성 중 오류:', error)
+      
+      let errorMessage = '알 수 없는 오류'
+      if (error instanceof Error) {
+        if (error.message.includes('fetch') || error.message.includes('NetworkError')) {
+          errorMessage = `FastAPI 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인하세요.\n(${process.env.NEXT_PUBLIC_FASTAPI_BASE_URL || 'http://localhost:8000'})`
+        } else {
+          errorMessage = error.message
+        }
+      }
+      
+      setAiSummary(`요약 생성 중 오류가 발생했습니다:\n${errorMessage}`)
     } finally {
       setIsLoadingSummary(false)
     }
@@ -1092,16 +1160,45 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
             </div>
 
             {/* AI 요약 섹션 */}
-            {aiSummary && (
+            {(aiSummary || isLoadingSummary) && (
               <div className="mt-6 pt-6 border-t">
-                <h3 className="font-semibold text-gray-900 mb-3">AI 요약</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-gray-900">AI 요약</h3>
+                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                    페이지 {pageNumber}
+                  </span>
+                </div>
+                
                 {isLoadingSummary ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                    <div className="flex flex-col items-center justify-center space-y-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-600 border-t-transparent"></div>
+                        <div className="flex space-x-1">
+                          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce delay-100"></div>
+                          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce delay-200"></div>
+                        </div>
+                      </div>
+                      <div className="text-center space-y-2">
+                        <p className="text-blue-800 font-medium">Data Waiting...</p>
+                        <div className="space-y-1">
+                          <p className="text-blue-700 text-sm">📄 PDF 페이지 추출 중</p>
+                          <p className="text-blue-600 text-xs">🤖 AI 분석 요청 중</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ) : (
-                  <div className="prose prose-sm text-gray-700 whitespace-pre-line text-sm">
-                    {aiSummary}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <div className="prose prose-sm text-gray-700 whitespace-pre-line text-sm max-w-none">
+                      {aiSummary}
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <p className="text-xs text-gray-500">
+                        생성 시간: {new Date().toLocaleString('ko-KR')}
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
