@@ -74,17 +74,24 @@ export default function LoginForm() {
           position: absolute;
           top: 0;
           left: 0;
-          width: 100%;
-          height: 100%;
+          width: 110%;
+          height: 110%;
           background: url('https://images.unsplash.com/photo-1519682337058-a94d519337bc?auto=format&fit=crop&w=1920&q=80')
               no-repeat center center/cover;
-  animation: bgMove 20s ease-in-out infinite alternate;
+          animation: bgMove 10s ease-in-out infinite alternate;
+          transform-origin: center center;
         }
 
         /* 배경에 부드러운 움직임 */
         @keyframes bgMove {
-          0% { background-position: center top; }
-          100% { background-position: center bottom; }
+          0% { 
+            transform: translateY(-5%) scale(1.1);
+            background-position: center 20%;
+          }
+          100% { 
+            transform: translateY(5%) scale(1.1);
+            background-position: center 80%;
+          }
         }
 
         /* 반투명 오버레이로 어두운 느낌 추가 */

@@ -75,16 +75,25 @@ export default function CourseRecommendation() {
         limit: '100'
       })
 
+      console.log('📡 API 호출:', `/api/courses?${params}`)
+      console.log('🔍 검색 파라미터:', {
+        search: searchTerm,
+        category: selectedCategory,
+        difficulty: selectedLevel,
+        sort_by: sortBy
+      })
+
       const response = await fetch(`/api/courses?${params}`)
       const result = await response.json()
 
       if (response.ok) {
+        console.log('✅ 강의 로드 성공:', result.data?.length, '개')
         setCourses(result.data || [])
       } else {
-        console.error('강의 로드 실패:', result.error)
+        console.error('❌ 강의 로드 실패:', result.error)
       }
     } catch (error) {
-      console.error('강의 로드 중 오류:', error)
+      console.error('💥 강의 로드 중 오류:', error)
     } finally {
       setLoading(false)
     }
@@ -92,7 +101,15 @@ export default function CourseRecommendation() {
 
   // 검색 및 필터링
   useEffect(() => {
+    console.log('🔄 검색 조건 변경됨:', {
+      searchTerm,
+      selectedCategory,
+      selectedLevel,
+      sortBy
+    })
+    
     const delayedSearch = setTimeout(() => {
+      console.log('⚡ 검색 실행 중...')
       loadCourses()
     }, 300)
 
@@ -104,22 +121,23 @@ export default function CourseRecommendation() {
     const handleSearchCourses = (event: any) => {
       const keyword = event.detail?.keyword
       if (keyword) {
+        console.log('🔍 받은 검색 키워드:', keyword)
+        
         // 필터 초기화 (더 정확한 검색을 위해)
         setSelectedCategory('all')
         setSelectedLevel('all')
         setSelectedTag('all')
+        
+        // 검색어 설정
         setSearchTerm(keyword)
         
-        // 검색어 설정 후 즉시 검색 실행
-        setTimeout(() => {
-          loadCourses()
-        }, 100)
+        console.log('✅ 검색어 설정 완료, 자동 검색 실행 예정')
       }
     }
 
     window.addEventListener('searchCourses', handleSearchCourses)
     return () => window.removeEventListener('searchCourses', handleSearchCourses)
-  }, [loadCourses])
+  }, [])
 
   // 토스트 표시 함수
   const showToast = (type: 'success' | 'error' | 'warning' | 'info', title: string, message: string) => {
