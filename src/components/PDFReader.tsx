@@ -119,18 +119,22 @@ const HighlightOverlay = React.memo(function HighlightOverlay({ highlights, page
       setOverlayHighlights(updatedHighlights)
     }
 
-    // 즉시 실행
-    updateHighlightPositions()
+    // 페이지가 로드되지 않았으면 즉시 실행하지 않음
+    if (!pageLoaded) {
+      return
+    }
+    
+    // 페이지 로드 후 약간의 지연을 두고 안정적으로 실행
+    const timeout = setTimeout(updateHighlightPositions, 200)
     
     // 리사이즈 처리
     const handleResize = () => {
-      setTimeout(updateHighlightPositions, 100)
+      if (pageLoaded) {
+        setTimeout(updateHighlightPositions, 100)
+      }
     }
     
     window.addEventListener('resize', handleResize)
-    
-    // 지연 재계산
-    const timeout = setTimeout(updateHighlightPositions, 300)
     
     return () => {
       window.removeEventListener('resize', handleResize)
@@ -691,8 +695,13 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
     if (highlight.pageNumber !== pageNumber) {
       setPageLoaded(false)
       setPageNumber(highlight.pageNumber)
+    } else {
+      // 같은 페이지일 때는 하이라이트를 일시적으로 숨기고 다시 표시하여 재조정 방지
+      setPageLoaded(false)
+      setTimeout(() => {
+        setPageLoaded(true)
+      }, 100)
     }
-    // 같은 페이지일 때는 페이지 번호만 설정 (이미 같으므로 실제로는 변경되지 않음)
   }
 
   // 페이지 번호가 변경될 때마다 페이지 로드 상태 초기화
