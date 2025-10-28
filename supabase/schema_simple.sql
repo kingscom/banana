@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS documents (
   original_document_id TEXT, -- 원본 문서 ID (공유된 문서인 경우)
   shared_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL, -- 공유한 사용자 ID
   is_shared BOOLEAN DEFAULT FALSE, -- 공유된 문서 여부
+  shared_at TIMESTAMPTZ, -- 공유된 시간
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -125,6 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents(user_id);
 CREATE INDEX IF NOT EXISTS idx_documents_original_id ON documents(original_document_id);
 CREATE INDEX IF NOT EXISTS idx_documents_shared_by ON documents(shared_by_user_id);
 CREATE INDEX IF NOT EXISTS idx_documents_is_shared ON documents(is_shared);
+CREATE INDEX IF NOT EXISTS idx_documents_shared_at ON documents(shared_at);
 CREATE INDEX IF NOT EXISTS idx_documents_summary ON documents(summary) WHERE summary IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_highlights_document_id ON highlights(document_id);
 CREATE INDEX IF NOT EXISTS idx_highlights_page_number ON highlights(page_number);

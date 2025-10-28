@@ -466,41 +466,160 @@ export default function Dashboard() {
       const targetLabel = shareTargetUser ? shareTargetUser.label : targetEmail
       
       console.log('문서 공유 시작:', shareModalDocument.id, '대상:', targetEmail)
+
+      // 문서의 하이라이트 정보 가져오기
+      console.log('📋 하이라이트 정보 수집 중...')
+      console.log('📊 전체 하이라이트 현황:', {
+        전체하이라이트수: highlights.length,
+        해당문서ID: shareModalDocument.id,
+        전체하이라이트샘플: highlights.slice(0, 2)
+      })
       
+      const documentHighlights = highlights.filter(h => h.document_id === shareModalDocument.id)
+      console.log('📋 해당 문서의 하이라이트:', {
+        필터링된개수: documentHighlights.length,
+        하이라이트데이터: documentHighlights
+      })
+      
+      // 하이라이트 색상 팔레트 정의
+      const highlightColors = [
+        { name: '노란색', color: '#fde047' },
+        { name: '초록색', color: '#86efac' },
+        { name: '파란색', color: '#7dd3fc' },
+        { name: '분홍색', color: '#f9a8d4' },
+        { name: '주황색', color: '#fdba74' },
+        { name: '보라색', color: '#c4b5fd' },
+        { name: '빨간색', color: '#fca5a5' },
+        { name: '회색', color: '#d1d5db' }
+      ]
+
+      // 하이라이트에서 색상 정보 및 위치 정보 추출
+      const highlightData = documentHighlights.map(highlight => ({
+        id: highlight.id,
+        text: highlight.selected_text?.substring(0, 100) || highlight.text?.substring(0, 100) || '', // 텍스트 100자로 제한
+        note: highlight.note || '',
+        pageNumber: highlight.page_number || highlight.pageNumber,
+        color: highlight.color || '#fde047',
+        colorName: highlightColors.find(c => c.color === highlight.color)?.name || '노란색',
+        // 위치 정보 포함
+        position_x: highlight.position_x || 0,
+        position_y: highlight.position_y || 0,
+        position_width: highlight.position_width || 0,
+        position_height: highlight.position_height || 0,
+        rectangles: highlight.rectangles || null, // JSON 데이터 또는 문자열
+        created_at: highlight.created_at
+      }))
+
+      console.log('🎨 수집된 하이라이트 색상 및 위치 정보:', {
+        총개수: highlightData.length,
+        상세데이터: highlightData,
+        색상통계: highlightData.reduce((acc, h) => {
+          acc[h.colorName] = (acc[h.colorName] || 0) + 1
+          return acc
+        }, {} as Record<string, number>),
+        위치정보통계: {
+          위치있음: highlightData.filter(h => h.position_x > 0 || h.position_y > 0).length,
+          rectangles있음: highlightData.filter(h => h.rectangles).length,
+          샘플위치정보: highlightData.slice(0, 2).map(h => ({
+            id: h.id,
+            position_x: h.position_x,
+            position_y: h.position_y,
+            position_width: h.position_width,
+            position_height: h.position_height,
+            hasRectangles: !!h.rectangles
+          }))
+        }
+      })
+      
+      const sharePayload = {
+        documentId: shareModalDocument.id,
+        documentTitle: shareModalDocument.title,
+        documentSummary: shareModalDocument.summary || '문서 요약이 아직 생성되지 않았습니다.',
+        highlights: highlightData,
+        targetUserEmail: targetEmail,
+        userId: user.id,
+        sharedAt: new Date().toISOString()
+      }
+
+      console.log('📤 공유 요청 데이터:', {
+        documentId: sharePayload.documentId,
+        documentTitle: sharePayload.documentTitle,
+        hasSummary: !!sharePayload.documentSummary,
+        highlightsCount: sharePayload.highlights.length,
+        targetUserEmail: sharePayload.targetUserEmail,
+        userId: sharePayload.userId
+      })
+
       const response = await fetch('/api/share', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          documentId: shareModalDocument.id,
-          targetUserEmail: targetEmail,
-          userId: user.id
-        })
+        body: JSON.stringify(sharePayload)
       })
       
+      console.log('📡 공유 API 응답 상태:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      })
+
       const result = await response.json()
+      console.log('📋 공유 API 응답 데이터:', result)
       
       if (response.ok) {
-        console.log('문서 공유 성공')
-        setSuccessMessage(`문서가 ${targetLabel}에게 성공적으로 공유되었습니다!`)
+        console.log('✅ 문서 공유 성공:', result)
+        
+        // 상세한 공유 성공 메시지
+        const summaryInfo = result.summaryIncluded ? '요약 포함' : '요약 없음'
+        const highlightInfo = result.highlightsShared > 0 ? `${result.highlightsShared}개 하이라이트 (색상 포함)` : '하이라이트 없음'
+        
+        setSuccessMessage(
+          `📋 "${shareModalDocument.title}"이(가) ${targetLabel}에게 성공적으로 공유되었습니다!\n` +
+          `📄 ${summaryInfo}, 🎨 ${highlightInfo}`
+        )
         setShareModalDocument(null)
         setShareTargetEmail('')
         setShareTargetUser(null)
         
-        // 3초 후 성공 메시지 자동 숨김
+        // 5초 후 성공 메시지 자동 숨김 (정보가 많아서 조금 더 길게)
         setTimeout(() => {
           setSuccessMessage('')
-        }, 3000)
+        }, 5000)
       } else {
-        console.error('문서 공유 실패:', result.error)
-        setErrorMessage('문서 공유에 실패했습니다: ' + result.error)
-        setTimeout(() => setErrorMessage(''), 5000)
+        console.error('❌ 문서 공유 실패:', {
+          status: response.status,
+          error: result.error,
+          details: result.details,
+          code: result.code
+        })
+        
+        let errorMsg = '문서 공유에 실패했습니다'
+        if (result.details) {
+          errorMsg += `: ${result.details}`
+        } else if (result.error) {
+          errorMsg += `: ${result.error}`
+        }
+        
+        setErrorMessage(errorMsg)
+        setTimeout(() => setErrorMessage(''), 8000) // 더 긴 시간 표시
       }
     } catch (error) {
-      console.error('문서 공유 중 오류:', error)
-      setErrorMessage('문서 공유 중 오류가 발생했습니다.')
-      setTimeout(() => setErrorMessage(''), 5000)
+      console.error('❌ 문서 공유 중 네트워크/파싱 오류:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        type: error instanceof TypeError ? 'Network Error' : 'Other Error'
+      })
+      
+      let errorMsg = '문서 공유 중 오류가 발생했습니다'
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        errorMsg += ' (네트워크 연결 오류)'
+      } else if (error instanceof Error) {
+        errorMsg += `: ${error.message}`
+      }
+      
+      setErrorMessage(errorMsg)
+      setTimeout(() => setErrorMessage(''), 8000)
     } finally {
       setIsSharing(false)
     }
@@ -642,10 +761,16 @@ export default function Dashboard() {
                 />
               </div>
               
-              <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                <p className="text-sm text-blue-800">
-                  📋 문서와 모든 하이라이트가 함께 공유됩니다
+              <div className="bg-blue-50 border border-blue-200 rounded p-3 space-y-2">
+                <p className="text-sm text-blue-800 font-medium">
+                  📋 다음 내용이 함께 공유됩니다:
                 </p>
+                <ul className="text-xs text-blue-700 space-y-1 ml-4">
+                  <li>• 문서 파일 및 내용</li>
+                  <li>• AI 생성 문서 요약</li>
+                  <li>• 모든 하이라이트 (색상 정보 포함)</li>
+                  <li>• 하이라이트 위치 및 페이지 정보</li>
+                </ul>
               </div>
             </div>
             
