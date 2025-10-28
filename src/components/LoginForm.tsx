@@ -36,7 +36,7 @@ export default function LoginForm() {
       <div className="overlay">
         <div className="content">
           <h1 className="main-title">나만의 AI 스터디룸</h1>
-          <p className="subtitle">AI와 함께하는 개인 도서관에서 지혜를 쌓아보세요</p>
+          <p className="subtitle">"AI와 함께 지혜를 쌓아보세요"</p>
           
           <button
             onClick={handleGoogleLogin}

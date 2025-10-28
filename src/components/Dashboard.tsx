@@ -236,6 +236,7 @@ export default function Dashboard() {
               const summaryFormData = new FormData()
               summaryFormData.append('file', file, file.name)
               summaryFormData.append('document_id', result.document.id)
+              summaryFormData.append('full', 'true')
               
               // 외부 FastAPI 서버로 직접 요청
               const FASTAPI_BASE_URL = process.env.NEXT_PUBLIC_FASTAPI_BASE_URL || 'http://localhost:8000'

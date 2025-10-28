@@ -212,6 +212,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
   const [showDocumentSummary, setShowDocumentSummary] = useState<boolean>(false)
   const [documentSummary, setDocumentSummary] = useState<string>('')
   const [summaryCheckInterval, setSummaryCheckInterval] = useState<NodeJS.Timeout | null>(null)
+  const [summaryCheckCount, setSummaryCheckCount] = useState<number>(0)
 
   // 서버에서 파일을 로드하는 함수 (중복 로딩 방지)
   const loadFileFromServer = async (document: any): Promise<File | null> => {
@@ -315,12 +316,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
     if (!highlightsLoaded && selectedPDFId && user) {
       setHighlightsLoaded(true) // 먼저 플래그를 설정하여 중복 호출 방지
       loadHighlights()
-      loadDocumentSummary().then(() => {
-        // 요약이 없으면 주기적 체크 시작
-        if (!documentSummary || !documentSummary.trim()) {
-          startSummaryCheck()
-        }
-      })
+      loadDocumentSummary() // 이 함수 내에서 체크 시작 여부를 결정
     }
     
     // 초기 페이지가 지정된 경우 해당 페이지로 이동
@@ -437,12 +433,32 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
 
   // 문서 요약 주기적 체크 시작
   const startSummaryCheck = () => {
+    // 이미 체크 중이면 중복 실행 방지
     if (summaryCheckInterval) {
-      clearInterval(summaryCheckInterval)
+      console.log('⚠️ 이미 문서 요약 체크가 실행 중입니다')
+      return
     }
+
+    let checkCount = 0 // 로컬 카운터 사용
+    setSummaryCheckCount(0) // UI 상태 초기화
+    console.log('📡 문서 요약 주기적 체크 시작 (5초 간격, 최대 100회)')
 
     const interval = setInterval(async () => {
       if (!selectedPDFId || !user) return
+
+      // 로컬 카운터 증가
+      checkCount++
+      setSummaryCheckCount(checkCount) // UI 업데이트
+      console.log(`📡 문서 요약 체크 ${checkCount}회째`)
+      
+      // 100회 제한 체크
+      if (checkCount > 100) {
+        console.log('⏹️ 문서 요약 체크 100회 초과로 자동 종료')
+        clearInterval(interval)
+        setSummaryCheckInterval(null)
+        setSummaryCheckCount(0)
+        return
+      }
 
       try {
         const response = await fetch(`/api/documents?id=${selectedPDFId}&user_id=${user.id}`)
@@ -456,6 +472,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
             // 요약이 생성되면 체크 중단
             clearInterval(interval)
             setSummaryCheckInterval(null)
+            setSummaryCheckCount(0)
           }
         }
       } catch (error) {
@@ -464,7 +481,6 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
     }, 5000) // 5초마다 체크
 
     setSummaryCheckInterval(interval)
-    console.log('📡 문서 요약 주기적 체크 시작 (5초 간격)')
   }
 
   // 문서 요약 체크 중단
@@ -472,6 +488,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
     if (summaryCheckInterval) {
       clearInterval(summaryCheckInterval)
       setSummaryCheckInterval(null)
+      setSummaryCheckCount(0)
       console.log('⏹️ 문서 요약 체크 중단')
     }
   }
@@ -769,7 +786,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
     }
   }
 
-  const generateSummary = async () => {
+  const generateSummary = async (isFullDocument: boolean = false) => {
     if (!selectedPDF || !user) return
     
     setIsLoadingSummary(true)
@@ -779,7 +796,8 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
       console.log('🔄 AI 요약 생성 시작:', { 
         page: pageNumber, 
         document: selectedPDFId,
-        fileName: selectedPDF.name 
+        fileName: selectedPDF.name,
+        isFullDocument: isFullDocument
       })
 
       // 1단계: 현재 페이지의 PDF 추출
@@ -806,7 +824,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
       console.log('✅ PDF 페이지 추출 성공:', extractResult)
 
       // 2단계: FastAPI로 AI 요약 요청 (Base64 데이터를 Blob으로 변환)
-      console.log('🤖 FastAPI AI 요약 요청 중...')
+      console.log('🤖 FastAPI AI 요약 요청 중...', isFullDocument ? '(전체 문서)' : '(페이지별)')
       
       // Base64 데이터를 Blob으로 변환
       const base64Data = extractResult.pdfData
@@ -817,14 +835,14 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
       const summaryFormData = new FormData()
       summaryFormData.append('file', extractedPdfBlob, `page_${pageNumber}.pdf`)
       summaryFormData.append('document_id', selectedPDFId || '')
-      summaryFormData.append('full', 'false')
+      summaryFormData.append('full', isFullDocument ? 'true' : 'false')
       
       // 외부 FastAPI 서버로 직접 요청
       const FASTAPI_BASE_URL = process.env.NEXT_PUBLIC_FASTAPI_BASE_URL || 'http://localhost:8000'
       
       const summaryResponse = await fetch(`${FASTAPI_BASE_URL}/summarize`, {
         method: 'POST',
-        body: summaryFormData,
+        body: summaryFormData
       })
 
       if (!summaryResponse.ok) {
@@ -1043,14 +1061,14 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                           documentSummary && documentSummary.trim() 
                             ? `전체 문서 AI 요약 보기 (${documentSummary.length}자)` 
                             : summaryCheckInterval
-                            ? 'AI 요약 생성 대기 중... (10초마다 확인)'
+                            ? `AI 요약 생성 대기 중... (${summaryCheckCount}/100회 체크)`
                             : 'AI 요약이 아직 생성되지 않았습니다'
                         }
                       >
                         {documentSummary && documentSummary.trim() 
                           ? '📄 AI 요약보기 ✅' 
                           : summaryCheckInterval 
-                          ? '📄 AI 요약보기 ⏱️' 
+                          ? `📄 AI 요약보기 ⏱️ (${summaryCheckCount})` 
                           : '📄 AI 요약보기'
                         }
                       </button>
@@ -1150,7 +1168,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                         하이라이트 {selectedText && `(${selectedText.length}자)`}
                       </button>
                       <button
-                        onClick={generateSummary}
+                        onClick={() => generateSummary(false)}
                         className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors font-medium"
                       >
                         Page AI 요약
