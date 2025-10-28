@@ -167,7 +167,7 @@ const HighlightOverlay = React.memo(function HighlightOverlay({ highlights, page
       window.removeEventListener('resize', handleResize)
       clearTimeout(timeout)
     }
-  }, [highlights.length, pageNumber, pageLoaded])
+  }, [highlights, pageNumber, pageLoaded])
 
   return (
     <div 
@@ -249,6 +249,92 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
   const [hasNewAnswer, setHasNewAnswer] = useState<boolean>(false)
   const [selectedAnswerText, setSelectedAnswerText] = useState<string>('')
 
+  // 하이라이트 색상 관련 상태
+  const [selectedColor, setSelectedColor] = useState<string>('#fde047') // 기본 노란색
+  const [showColorPalette, setShowColorPalette] = useState<boolean>(false)
+
+  // 하이라이트 색상 팔레트
+  const highlightColors = [
+    { name: '노란색', color: '#fde047' },
+    { name: '초록색', color: '#86efac' },
+    { name: '파란색', color: '#7dd3fc' },
+    { name: '분홍색', color: '#f9a8d4' },
+    { name: '주황색', color: '#fdba74' },
+    { name: '보라색', color: '#c4b5fd' },
+    { name: '빨간색', color: '#fca5a5' },
+    { name: '회색', color: '#d1d5db' }
+  ]
+
+  // 선택된 색상을 CSS 변수로 적용하여 텍스트 선택 시 하이라이트 색상 변경
+  useEffect(() => {
+    const root = document.documentElement
+    root.style.setProperty('--highlight-color', selectedColor)
+    
+    // PDF 컨테이너에 동적 스타일 적용
+    const updateTextSelectionColor = () => {
+      const styleId = 'dynamic-highlight-style'
+      let styleElement = document.getElementById(styleId) as HTMLStyleElement
+      
+      if (!styleElement) {
+        styleElement = document.createElement('style')
+        styleElement.id = styleId
+        document.head.appendChild(styleElement)
+      }
+      
+      // 모든 PDF 관련 요소의 텍스트 선택 색상 변경
+      styleElement.textContent = `
+        .pdf-container ::selection {
+          background-color: ${selectedColor} !important;
+          opacity: 0.6;
+        }
+        .pdf-container ::-moz-selection {
+          background-color: ${selectedColor} !important;
+          opacity: 0.6;
+        }
+        .react-pdf__Page__textContent ::selection {
+          background-color: ${selectedColor} !important;
+          opacity: 0.6;
+        }
+        .react-pdf__Page__textContent ::-moz-selection {
+          background-color: ${selectedColor} !important;
+          opacity: 0.6;
+        }
+        .react-pdf__Page__textContent span::selection {
+          background-color: ${selectedColor} !important;
+          opacity: 0.6;
+        }
+        .react-pdf__Page__textContent span::-moz-selection {
+          background-color: ${selectedColor} !important;
+          opacity: 0.6;
+        }
+        .react-pdf__Page__textContent div::selection {
+          background-color: ${selectedColor} !important;
+          opacity: 0.6;
+        }
+        .react-pdf__Page__textContent div::-moz-selection {
+          background-color: ${selectedColor} !important;
+          opacity: 0.6;
+        }
+      `
+    }
+    
+    updateTextSelectionColor()
+    
+    // PDF 텍스트 레이어가 로드될 때까지 대기 후 다시 적용
+    const intervalId = setInterval(() => {
+      const textLayer = document.querySelector('.react-pdf__Page__textContent')
+      if (textLayer) {
+        updateTextSelectionColor()
+        clearInterval(intervalId)
+      }
+    }, 100)
+    
+    // 5초 후 인터벌 정리
+    setTimeout(() => clearInterval(intervalId), 5000)
+    
+    return () => clearInterval(intervalId)
+  }, [selectedColor])
+
   // 서버에서 파일을 로드하는 함수 (중복 로딩 방지)
   const loadFileFromServer = async (document: any): Promise<File | null> => {
     try {
@@ -327,6 +413,47 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
       if (selection && selection.toString().trim()) {
         setSelectedText(selection.toString().trim())
         setSelection(selection)
+        
+        // 텍스트 선택 시 현재 색상으로 스타일 다시 적용
+        setTimeout(() => {
+          const styleElement = document.getElementById('dynamic-highlight-style') as HTMLStyleElement
+          if (styleElement) {
+            styleElement.textContent = `
+              .pdf-container ::selection {
+                background-color: ${selectedColor} !important;
+                opacity: 0.6;
+              }
+              .pdf-container ::-moz-selection {
+                background-color: ${selectedColor} !important;
+                opacity: 0.6;
+              }
+              .react-pdf__Page__textContent ::selection {
+                background-color: ${selectedColor} !important;
+                opacity: 0.6;
+              }
+              .react-pdf__Page__textContent ::-moz-selection {
+                background-color: ${selectedColor} !important;
+                opacity: 0.6;
+              }
+              .react-pdf__Page__textContent span::selection {
+                background-color: ${selectedColor} !important;
+                opacity: 0.6;
+              }
+              .react-pdf__Page__textContent span::-moz-selection {
+                background-color: ${selectedColor} !important;
+                opacity: 0.6;
+              }
+              .react-pdf__Page__textContent div::selection {
+                background-color: ${selectedColor} !important;
+                opacity: 0.6;
+              }
+              .react-pdf__Page__textContent div::-moz-selection {
+                background-color: ${selectedColor} !important;
+                opacity: 0.6;
+              }
+            `
+          }
+        }, 10)
       } else if (selectedText) {
         // 선택이 해제되면 일정 시간 후 상태 초기화
         setTimeout(() => {
@@ -343,7 +470,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
     return () => {
       document.removeEventListener('selectionchange', handleSelectionChange)
     }
-  }, [selectedText])
+  }, [selectedText, selectedColor])
 
   // PDF 문서가 로드된 후 하이라이트 불러오기
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
@@ -406,6 +533,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
           width: h.position_width || 0.1,
           height: h.position_height || 0.02,
           rectangles: rectangles,
+          color: h.color || '#fde047', // 저장된 색상 또는 기본값
           created_at: h.created_at
         }
       })
@@ -533,6 +661,47 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
     if (selection && selection.toString().trim()) {
       setSelectedText(selection.toString().trim())
       setSelection(selection)
+      
+      // 텍스트 선택 시 현재 색상으로 스타일 즉시 적용
+      setTimeout(() => {
+        const styleElement = document.getElementById('dynamic-highlight-style') as HTMLStyleElement
+        if (styleElement) {
+          styleElement.textContent = `
+            .pdf-container ::selection {
+              background-color: ${selectedColor} !important;
+              opacity: 0.6;
+            }
+            .pdf-container ::-moz-selection {
+              background-color: ${selectedColor} !important;
+              opacity: 0.6;
+            }
+            .react-pdf__Page__textContent ::selection {
+              background-color: ${selectedColor} !important;
+              opacity: 0.6;
+            }
+            .react-pdf__Page__textContent ::-moz-selection {
+              background-color: ${selectedColor} !important;
+              opacity: 0.6;
+            }
+            .react-pdf__Page__textContent span::selection {
+              background-color: ${selectedColor} !important;
+              opacity: 0.6;
+            }
+            .react-pdf__Page__textContent span::-moz-selection {
+              background-color: ${selectedColor} !important;
+              opacity: 0.6;
+            }
+            .react-pdf__Page__textContent div::selection {
+              background-color: ${selectedColor} !important;
+              opacity: 0.6;
+            }
+            .react-pdf__Page__textContent div::-moz-selection {
+              background-color: ${selectedColor} !important;
+              opacity: 0.6;
+            }
+          `
+        }
+      }, 5)
     }
   }
 
@@ -689,7 +858,8 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
         y: relativeY || 0,
         width: relativeWidth || 0,
         height: relativeHeight || 0,
-        rectangles: rectangles.length > 0 ? rectangles : undefined // 좌표가 없으면 undefined
+        rectangles: rectangles.length > 0 ? rectangles : undefined, // 좌표가 없으면 undefined
+        color: selectedColor // 선택된 색상 추가
       }
 
       // 하이라이트 추가 로깅 (디버깅 시에만 활성화)
@@ -710,6 +880,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
         position_width: relativeWidth || 0, // null 대신 0으로 기본값 설정
         position_height: relativeHeight || 0, // null 대신 0으로 기본값 설정
         rectangles: rectangles.length > 0 ? JSON.stringify(rectangles) : null, // 좌표가 없으면 null
+        color: selectedColor, // 선택된 색상 추가
         user_id: user.id
       }
       
@@ -761,6 +932,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
           width: result.data.position_width || 0.1,
           height: result.data.position_height || 0.02,
           rectangles: savedRectangles,
+          color: result.data.color || '#fde047', // 저장된 색상 또는 기본값
           created_at: result.data.created_at
         }
         
@@ -900,7 +1072,8 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
         y: 0,
         width: 0,
         height: 0,
-        rectangles: undefined
+        rectangles: undefined,
+        color: selectedColor // 선택된 색상 추가
       }
 
       // 먼저 UI에 임시로 추가
@@ -918,6 +1091,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
         position_width: 0,
         position_height: 0,
         rectangles: null,
+        color: selectedColor, // 선택된 색상 추가
         user_id: user.id
       }
       
@@ -948,6 +1122,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
           width: result.data.position_width,
           height: result.data.position_height,
           rectangles: result.data.rectangles ? JSON.parse(result.data.rectangles) : undefined,
+          color: result.data.color || '#fde047', // 저장된 색상 또는 기본값
           created_at: result.data.created_at
         }
         
@@ -1544,21 +1719,94 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                       </button>
                     </div>
                     <div className="flex space-x-2">
-                      <button
-                        onClick={addHighlight}
-                        disabled={!selectedText}
-                        className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none ${
-                          selectedText 
-                            ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600' 
-                            : 'bg-gray-200 text-gray-500 cursor-not-allowed shadow-sm'
-                        }`}
-                        title={selectedText ? `선택된 텍스트: "${selectedText.substring(0, 50)}..."` : "텍스트를 선택하세요"}
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v2h4a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-1v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4z" />
-                        </svg>
-                        <span>하이라이트 {selectedText && `(${selectedText.length}자)`}</span>
-                      </button>
+                      {/* 하이라이트 버튼과 색상 선택기 */}
+                      <div className="flex items-center space-x-1">
+                        <button
+                          onClick={addHighlight}
+                          disabled={!selectedText}
+                          className={`flex items-center space-x-2 px-4 py-2.5 rounded-l-xl text-sm font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none ${
+                            selectedText 
+                              ? 'text-white hover:opacity-90' 
+                              : 'bg-gray-200 text-gray-500 cursor-not-allowed shadow-sm'
+                          }`}
+                          style={{ 
+                            backgroundColor: selectedText ? selectedColor : undefined,
+                            borderColor: selectedText ? selectedColor : undefined
+                          }}
+                          title={selectedText ? `선택된 텍스트: "${selectedText.substring(0, 50)}..."` : "텍스트를 선택하세요"}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v2h4a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-1v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4z" />
+                          </svg>
+                          <span>하이라이트 {selectedText && `(${selectedText.length}자)`}</span>
+                        </button>
+                        
+                        {/* 색상 선택 버튼 */}
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowColorPalette(!showColorPalette)}
+                            className="flex items-center justify-center w-10 h-10 rounded-r-xl border-l border-white/20 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                            style={{ backgroundColor: selectedColor }}
+                            title="하이라이트 색상 선택"
+                          >
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                          
+                          {/* 색상 팔레트 */}
+                          {showColorPalette && (
+                            <>
+                              {/* 배경 오버레이 - 클릭하면 닫힘 */}
+                              <div 
+                                className="fixed inset-0 z-40"
+                                onClick={() => setShowColorPalette(false)}
+                              />
+                              <div className="absolute top-12 right-0 bg-white rounded-lg shadow-2xl border p-3 z-50 min-w-[200px]">
+                                <p className="text-sm font-medium text-gray-700 mb-2">하이라이트 색상</p>
+                                <div className="grid grid-cols-4 gap-2">
+                                  {highlightColors.map((colorOption) => (
+                                    <button
+                                      key={colorOption.color}
+                                      onClick={() => {
+                                        setSelectedColor(colorOption.color)
+                                        setShowColorPalette(false)
+                                      }}
+                                      onMouseEnter={() => {
+                                        // 마우스 오버 시 임시로 색상 미리보기
+                                        const styleElement = document.getElementById('dynamic-highlight-style') as HTMLStyleElement
+                                        if (styleElement) {
+                                          styleElement.textContent = styleElement.textContent?.replace(
+                                            new RegExp(selectedColor, 'g'), 
+                                            colorOption.color
+                                          ) || ''
+                                        }
+                                      }}
+                                      onMouseLeave={() => {
+                                        // 마우스 떠날 때 원래 색상으로 복원
+                                        const styleElement = document.getElementById('dynamic-highlight-style') as HTMLStyleElement
+                                        if (styleElement) {
+                                          styleElement.textContent = styleElement.textContent?.replace(
+                                            new RegExp(colorOption.color, 'g'), 
+                                            selectedColor
+                                          ) || ''
+                                        }
+                                      }}
+                                      className={`w-8 h-8 rounded-full border-2 transition-all duration-200 hover:scale-110 ${
+                                        selectedColor === colorOption.color 
+                                          ? 'border-gray-800 shadow-lg' 
+                                          : 'border-gray-300 hover:border-gray-500'
+                                      }`}
+                                      style={{ backgroundColor: colorOption.color }}
+                                      title={`${colorOption.name} - 클릭하여 선택`}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
                       <button
                         onClick={() => generateSummary(false)}
                         className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl hover:from-cyan-600 hover:to-blue-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
@@ -1566,7 +1814,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                         </svg>
-                        <span>AI 요약 요청</span>
+                        <span>AI 요약</span>
                       </button>
 
                       <button
@@ -1582,7 +1830,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <span>
-                          {hasNewAnswer ? '💬 답변완료!' : '🤖 AI에게 묻기'}
+                          {hasNewAnswer ? '💬 답변완료!' : '🤖 AI 질의'}
                         </span>
                       </button>
                     </div>
@@ -1881,9 +2129,17 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                   onClick={() => goToHighlight(highlight)}
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                      페이지 {highlight.pageNumber}
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                        페이지 {highlight.pageNumber}
+                      </span>
+                      {/* 하이라이트 색상 표시 */}
+                      <div 
+                        className="w-4 h-4 rounded-full border border-gray-300"
+                        style={{ backgroundColor: highlight.color || '#fde047' }}
+                        title={`하이라이트 색상: ${highlightColors.find(c => c.color === highlight.color)?.name || '노란색'}`}
+                      />
+                    </div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
