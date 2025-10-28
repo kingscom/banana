@@ -213,6 +213,13 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
   const [documentSummary, setDocumentSummary] = useState<string>('')
   const [summaryCheckInterval, setSummaryCheckInterval] = useState<NodeJS.Timeout | null>(null)
   const [summaryCheckCount, setSummaryCheckCount] = useState<number>(0)
+  
+  // AI Q&A 관련 상태
+  const [showAIQA, setShowAIQA] = useState<boolean>(false)
+  const [question, setQuestion] = useState<string>('')
+  const [answer, setAnswer] = useState<string>('')
+  const [isLoadingAnswer, setIsLoadingAnswer] = useState<boolean>(false)
+  const [hasNewAnswer, setHasNewAnswer] = useState<boolean>(false)
 
   // 서버에서 파일을 로드하는 함수 (중복 로딩 방지)
   const loadFileFromServer = async (document: any): Promise<File | null> => {
@@ -786,6 +793,99 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
     }
   }
 
+  // AI Q&A 관련 함수들
+  const handleAskAI = () => {
+    setShowAIQA(true)
+    setHasNewAnswer(false) // 새 질문 시작 시 알림 초기화
+  }
+
+  const submitQuestion = async () => {
+    if (!question.trim() || !selectedPDF || !user) return
+    
+    setIsLoadingAnswer(true)
+    setAnswer('') // 이전 답변 초기화
+    
+    try {
+      console.log('🤖 AI Q&A 요청:', { question, page: pageNumber, document: selectedPDFId })
+
+      // 1단계: 현재 페이지의 PDF 추출
+      const formData = new FormData()
+      formData.append('pdf', selectedPDF)
+      formData.append('pageNumber', pageNumber.toString())
+      formData.append('userId', user.id)
+      formData.append('documentId', selectedPDFId || '')
+
+      console.log('📄 PDF 페이지 추출 요청 중...')
+      
+      const extractResponse = await fetch('/api/extract-page', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!extractResponse.ok) {
+        const error = await extractResponse.json()
+        throw new Error(`PDF 페이지 추출 실패: ${error.error || 'Unknown error'}`)
+      }
+
+      const extractResult = await extractResponse.json()
+      console.log('✅ PDF 페이지 추출 성공')
+
+      // 2단계: FastAPI로 AI Q&A 요청
+      console.log('🤖 FastAPI AI Q&A 요청 중...')
+      
+      const base64Data = extractResult.pdfData
+      const pdfBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
+      const extractedPdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' })
+      
+      const qaFormData = new FormData()
+      qaFormData.append('file', extractedPdfBlob, `page_${pageNumber}.pdf`)
+      qaFormData.append('document_id', selectedPDFId || '')
+      qaFormData.append('question', question)
+      
+      const FASTAPI_BASE_URL = process.env.NEXT_PUBLIC_FASTAPI_BASE_URL || 'http://localhost:8000'
+      
+      const qaResponse = await fetch(`${FASTAPI_BASE_URL}/ask`, {
+        method: 'POST',
+        body: qaFormData
+      })
+
+      if (!qaResponse.ok) {
+        let errorMessage = 'Unknown error'
+        try {
+          const error = await qaResponse.json()
+          errorMessage = error.detail || error.message || error.error || `HTTP ${qaResponse.status}`
+        } catch {
+          errorMessage = `HTTP ${qaResponse.status} - ${qaResponse.statusText}`
+        }
+        throw new Error(`AI Q&A 요청 실패: ${errorMessage}`)
+      }
+
+      const qaResult = await qaResponse.json()
+      console.log('✅ FastAPI에서 AI Q&A 완료:', qaResult)
+
+      const aiAnswer = qaResult.answer || qaResult.response || qaResult.result || '답변을 생성할 수 없습니다.'
+      setAnswer(aiAnswer)
+      setHasNewAnswer(true) // 새로운 답변이 있음을 표시
+      
+    } catch (error) {
+      console.error('❌ AI Q&A 중 오류:', error)
+      
+      let errorMessage = '알 수 없는 오류'
+      if (error instanceof Error) {
+        if (error.message.includes('fetch') || error.message.includes('NetworkError')) {
+          errorMessage = `FastAPI 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인하세요.\n(${process.env.NEXT_PUBLIC_FASTAPI_BASE_URL || 'http://localhost:8000'})`
+        } else {
+          errorMessage = error.message
+        }
+      }
+      
+      setAnswer(`질문 처리 중 오류가 발생했습니다:\n${errorMessage}`)
+      setHasNewAnswer(true)
+    } finally {
+      setIsLoadingAnswer(false)
+    }
+  }
+
   const generateSummary = async (isFullDocument: boolean = false) => {
     if (!selectedPDF || !user) return
     
@@ -1017,6 +1117,133 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
         </div>
       )}
 
+      {/* AI Q&A 팝업 모달 */}
+      {showAIQA && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[200]">
+          <div className="bg-white rounded-xl p-6 max-w-4xl w-full mx-4 max-h-[85vh] overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900">🤖 AI에게 질문하기</h3>
+                  <p className="text-sm text-gray-500">{pdfs[0]?.name || '문서'}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAIQA(false)}
+                className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* 질문 입력 영역 */}
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-3">
+                💬 질문을 입력하세요
+              </label>
+              <div className="flex space-x-3">
+                <textarea
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  placeholder="이 페이지의 내용에 대해 궁금한 것을 물어보세요..."
+                  className="flex-1 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none h-24"
+                  disabled={isLoadingAnswer}
+                />
+                <button
+                  onClick={submitQuestion}
+                  disabled={!question.trim() || isLoadingAnswer}
+                  className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 min-w-[100px] ${
+                    !question.trim() || isLoadingAnswer
+                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transform hover:scale-105'
+                  }`}
+                >
+                  {isLoadingAnswer ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                      <span>분석중</span>
+                    </div>
+                  ) : (
+                    '질문하기'
+                  )}
+                </button>
+              </div>
+            </div>
+            
+            {/* 답변 영역 */}
+            {(answer || isLoadingAnswer) && (
+              <div className="border-t pt-6">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                    <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <h4 className="font-semibold text-gray-900">🤖 AI 답변</h4>
+                </div>
+                
+                {isLoadingAnswer ? (
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+                    <div className="flex flex-col items-center justify-center space-y-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="animate-spin rounded-full h-6 w-6 border-2 border-purple-600 border-t-transparent"></div>
+                        <div className="flex space-x-1">
+                          <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce delay-100"></div>
+                          <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce delay-200"></div>
+                        </div>
+                      </div>
+                      <div className="text-center space-y-2">
+                        <p className="text-purple-800 font-medium">AI가 답변을 생성하고 있습니다...</p>
+                        <div className="space-y-1">
+                          <p className="text-purple-700 text-sm">📄 문서 내용 분석 중</p>
+                          <p className="text-purple-600 text-xs">🤖 질문에 대한 답변 생성 중</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                    <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-line leading-relaxed">
+                      {answer}
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-green-200">
+                      <p className="text-xs text-green-600">
+                        답변 생성 시간: {new Date().toLocaleString('ko-KR')}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center">
+              <div className="text-sm text-gray-500">
+                <span className="inline-flex items-center space-x-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>전체 페이지 내용을 기반으로 답변을 생성합니다</span>
+                </span>
+              </div>
+              <button
+                onClick={() => setShowAIQA(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PDF Viewer */}
       <div className="flex-1 flex">
         <div className="flex-1 overflow-auto p-6 custom-scrollbar">
@@ -1103,35 +1330,32 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                           }, 600)
                         }}
                         disabled={pageNumber <= 1 || isFlipping}
-                        className="flex items-center space-x-2 px-4 py-2 bg-white text-gray-700 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                        className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-full hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none"
+                        title="이전 페이지"
                       >
-                        <span>←</span>
-                        <span>이전</span>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
                       </button>
                       
                       {/* 페이지 입력 필드 */}
                       <form onSubmit={handlePageInputSubmit} className="flex items-center space-x-2">
                         <input
                           type="text"
-                          value={pageInputValue}
+                          value={pageInputValue || pageNumber.toString()}
                           onChange={(e) => setPageInputValue(e.target.value)}
-                          placeholder="페이지"
+                          placeholder={pageNumber.toString()}
                           className="w-16 px-2 py-1 text-center text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                         <span className="text-gray-500 text-sm">/ {numPages}</span>
                         <button
                           type="submit"
-                          className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
+                          className="px-3 py-1.5 text-xs bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg hover:from-emerald-600 hover:to-emerald-700 transition-all duration-200 disabled:opacity-50 shadow-md hover:shadow-lg transform hover:scale-105 font-medium"
                           disabled={isFlipping}
                         >
                           이동
                         </button>
                       </form>
-                      
-                      {/* 현재 페이지 표시 */}
-                      <div className="px-3 py-1 bg-gray-100 text-gray-700 font-medium rounded-lg text-sm">
-                        현재: {pageNumber}
-                      </div>
                       
                       <button
                         onClick={() => {
@@ -1148,30 +1372,55 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                           }, 600)
                         }}
                         disabled={pageNumber >= numPages || isFlipping}
-                        className="flex items-center space-x-2 px-4 py-2 bg-white text-gray-700 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                        className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-full hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none"
+                        title="다음 페이지"
                       >
-                        <span>다음</span>
-                        <span>→</span>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
                       </button>
                     </div>
                     <div className="flex space-x-2">
                       <button
                         onClick={addHighlight}
                         disabled={!selectedText}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none ${
                           selectedText 
-                            ? 'bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100' 
-                            : 'bg-gray-50 text-gray-400 border border-gray-200 cursor-not-allowed'
+                            ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600' 
+                            : 'bg-gray-200 text-gray-500 cursor-not-allowed shadow-sm'
                         }`}
                         title={selectedText ? `선택된 텍스트: "${selectedText.substring(0, 50)}..."` : "텍스트를 선택하세요"}
                       >
-                        하이라이트 {selectedText && `(${selectedText.length}자)`}
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v2h4a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-1v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4z" />
+                        </svg>
+                        <span>하이라이트 {selectedText && `(${selectedText.length}자)`}</span>
                       </button>
                       <button
                         onClick={() => generateSummary(false)}
-                        className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors font-medium"
+                        className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl hover:from-cyan-600 hover:to-blue-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
                       >
-                        Page AI 요약
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                        <span>AI 요약 요청</span>
+                      </button>
+
+                      <button
+                        onClick={handleAskAI}
+                        className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${
+                          hasNewAnswer 
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700' 
+                            : 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700'
+                        }`}
+                        title={hasNewAnswer ? "새로운 답변이 있습니다!" : "AI에게 질문하기"}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>
+                          {hasNewAnswer ? '💬 답변완료!' : '🤖 AI에게 묻기'}
+                        </span>
                       </button>
                     </div>
                   </div>

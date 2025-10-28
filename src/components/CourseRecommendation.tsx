@@ -615,6 +615,20 @@ function CourseModal({ isOpen, onClose, onSubmit, initialData, isEditing = false
 
   const [loading, setLoading] = useState(false)
 
+  // 모달이 열릴 때 body 스크롤 방지
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+
+    // 컴포넌트 언마운트 시 스크롤 복원
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [isOpen])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -641,8 +655,28 @@ function CourseModal({ isOpen, onClose, onSubmit, initialData, isEditing = false
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-50 p-4 pt-8 animate-fade-in">
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl animate-modal-in transform transition-all duration-300">
+    <div 
+      className="fixed inset-0 flex items-start justify-center p-4 pt-8"
+      style={{
+        zIndex: 9999,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        animation: 'fade-in 0.2s ease-out'
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose()
+        }
+      }}
+    >
+      <div 
+        className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl"
+        style={{
+          animation: 'modal-in 0.3s ease-out',
+          transform: 'scale(1)',
+          opacity: 1
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="max-h-[90vh] overflow-y-auto">
           <div className="sticky top-0 bg-white rounded-t-xl border-b border-gray-200 px-6 py-4">
           <div className="flex justify-between items-center">
@@ -907,7 +941,7 @@ function Toast({ type, title, message, onClose }: ToastProps) {
   const styles = getToastStyles()
 
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-slide-in-down">
+    <div className="fixed top-4 left-1/2 -translate-x-1/2" style={{ zIndex: 10001, animation: 'slide-in-down 0.3s ease-out' }}>
       <div className={`w-96 ${styles.bg} border-2 rounded-xl shadow-xl p-4`}>
         <div className="flex items-start">
           <div className="flex-shrink-0 mt-0.5">
@@ -945,7 +979,7 @@ interface ConfirmModalProps {
 
 function ConfirmModal({ title, message, onConfirm, onCancel }: ConfirmModalProps) {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" style={{ zIndex: 10000 }}>
       <div className="bg-white rounded-lg max-w-md w-full shadow-xl">
         <div className="p-6">
           {/* 아이콘과 제목 */}
