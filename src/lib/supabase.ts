@@ -35,6 +35,7 @@ export interface Highlight {
   position_y: number
   position_width: number
   position_height: number
+  color?: string // 하이라이트 색상
   created_at: string
 }
 

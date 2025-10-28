@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
       position_width,
       position_height,
       rectangles,
+      color,
       user_id
     } = body
 
@@ -73,7 +74,8 @@ export async function POST(request: NextRequest) {
       position_y,
       position_width,
       position_height,
-      rectangles: rectangles || null
+      rectangles: rectangles || null,
+      color: color || '#fde047' // 기본 노란색
     }
 
     console.log('저장할 하이라이트 데이터:', insertData)

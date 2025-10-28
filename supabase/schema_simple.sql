@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS highlights (
   position_width FLOAT NOT NULL,
   position_height FLOAT NOT NULL,
   rectangles TEXT, -- JSON string containing array of rectangles for polygon highlights
+  color TEXT DEFAULT '#fde047', -- 하이라이트 색상 (기본값: 노란색)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
