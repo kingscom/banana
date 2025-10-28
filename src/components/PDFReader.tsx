@@ -63,8 +63,29 @@ const HighlightOverlay = React.memo(function HighlightOverlay({ highlights, page
       const displayWidth = canvasRect.width
       const displayHeight = canvasRect.height
       
-      const updatedHighlights = highlights.map(highlight => {
-        let rawRectangles = []
+      const updatedHighlights = highlights
+        .filter(highlight => {
+          // PDF 외부 하이라이트 필터링 조건들
+          const isZeroCoordinate = highlight.x === 0 && highlight.y === 0 && highlight.width === 0 && highlight.height === 0
+          const hasNoRectangles = !highlight.rectangles || (Array.isArray(highlight.rectangles) && highlight.rectangles.length === 0)
+          const hasEmptyRectangles = highlight.rectangles === null || highlight.rectangles === undefined
+          
+          // 다음 중 하나라도 해당하면 표시하지 않음
+          if (isZeroCoordinate || hasNoRectangles || hasEmptyRectangles) {
+            console.log('📍 하이라이트 필터링:', {
+              id: highlight.id,
+              isZeroCoordinate,
+              hasNoRectangles,
+              hasEmptyRectangles,
+              rectangles: highlight.rectangles
+            })
+            return false
+          }
+          
+          return true
+        })
+        .map(highlight => {
+        let rawRectangles: { x: number; y: number; width: number; height: number; }[] = []
         
         if (highlight.rectangles && Array.isArray(highlight.rectangles) && highlight.rectangles.length > 0) {
           // 다각형 하이라이트 (여러 직사각형)
@@ -76,12 +97,17 @@ const HighlightOverlay = React.memo(function HighlightOverlay({ highlights, page
           }))
         } else {
           // 기존 단일 직사각형 하이라이트 또는 잘못된 rectangles 데이터
-          rawRectangles = [{
-            x: Math.max(0, highlight.x * displayWidth + 17),
-            y: Math.max(0, highlight.y * displayHeight + 17),
-            width: Math.max(10, highlight.width * displayWidth),
-            height: Math.max(8, highlight.height * displayHeight)
-          }]
+          // 0, 0, 0, 0 좌표인 경우 빈 배열 반환하여 표시하지 않음
+          if (highlight.x === 0 && highlight.y === 0 && highlight.width === 0 && highlight.height === 0) {
+            rawRectangles = []
+          } else {
+            rawRectangles = [{
+              x: Math.max(0, highlight.x * displayWidth + 17),
+              y: Math.max(0, highlight.y * displayHeight + 17),
+              width: Math.max(10, highlight.width * displayWidth),
+              height: Math.max(8, highlight.height * displayHeight)
+            }]
+          }
         }
         
         // 같은 행(Y값과 height가 같은)의 사각형들을 합치기
@@ -220,6 +246,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
   const [answer, setAnswer] = useState<string>('')
   const [isLoadingAnswer, setIsLoadingAnswer] = useState<boolean>(false)
   const [hasNewAnswer, setHasNewAnswer] = useState<boolean>(false)
+  const [selectedAnswerText, setSelectedAnswerText] = useState<string>('')
 
   // 서버에서 파일을 로드하는 함수 (중복 로딩 방지)
   const loadFileFromServer = async (document: any): Promise<File | null> => {
@@ -448,7 +475,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
 
     let checkCount = 0 // 로컬 카운터 사용
     setSummaryCheckCount(0) // UI 상태 초기화
-    console.log('📡 문서 요약 주기적 체크 시작 (5초 간격, 최대 100회)')
+    console.log('📡 문서 요약 주기적 체크 시작 (5초 간격, 최대 50회)')
 
     const interval = setInterval(async () => {
       if (!selectedPDFId || !user) return
@@ -458,9 +485,9 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
       setSummaryCheckCount(checkCount) // UI 업데이트
       console.log(`📡 문서 요약 체크 ${checkCount}회째`)
       
-      // 100회 제한 체크
-      if (checkCount > 100) {
-        console.log('⏹️ 문서 요약 체크 100회 초과로 자동 종료')
+      // 50회 제한 체크
+      if (checkCount > 50) {
+        console.log('⏹️ 문서 요약 체크 50회 초과로 자동 종료')
         clearInterval(interval)
         setSummaryCheckInterval(null)
         setSummaryCheckCount(0)
@@ -558,23 +585,61 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
       // Range의 모든 직사각형 영역 가져오기 (여러 줄 선택 시 다각형)
       const rects = range.getClientRects()
       const rawRectangles = []
+      let isInsidePDFContent = false
       
-      // 먼저 모든 사각형을 상대 좌표로 변환
+      // 먼저 모든 사각형을 상대 좌표로 변환하고 PDF 영역 내부인지 확인
       for (let i = 0; i < rects.length; i++) {
         const rect = rects[i]
         if (rect.width > 0 && rect.height > 0) {
-          const relativeX = Math.max(0, Math.min(1, (rect.left - canvasRect.left) / canvasRect.width))
-          const relativeY = Math.max(0, Math.min(1, (rect.top - canvasRect.top) / canvasRect.height))
-          const relativeWidth = Math.max(0.01, Math.min(1, rect.width / canvasRect.width))
-          const relativeHeight = Math.max(0.01, Math.min(1, rect.height / canvasRect.height))
+          // PDF 캔버스 영역과의 교집합 확인
+          const rectLeft = rect.left
+          const rectRight = rect.right
+          const rectTop = rect.top
+          const rectBottom = rect.bottom
           
-          rawRectangles.push({
-            x: relativeX,
-            y: relativeY, 
-            width: relativeWidth,
-            height: relativeHeight
-          })
+          const canvasLeft = canvasRect.left
+          const canvasRight = canvasRect.right
+          const canvasTop = canvasRect.top
+          const canvasBottom = canvasRect.bottom
+          
+          // 교집합 계산
+          const intersectionLeft = Math.max(rectLeft, canvasLeft)
+          const intersectionRight = Math.min(rectRight, canvasRight)
+          const intersectionTop = Math.max(rectTop, canvasTop)
+          const intersectionBottom = Math.min(rectBottom, canvasBottom)
+          
+          // 교집합이 존재하고 유효한 크기인지 확인
+          if (intersectionLeft < intersectionRight && intersectionTop < intersectionBottom) {
+            const intersectionWidth = intersectionRight - intersectionLeft
+            const intersectionHeight = intersectionBottom - intersectionTop
+            
+            // 교집합 영역이 원본 선택 영역의 상당 부분(50% 이상)을 차지하는 경우만 유효
+            const originalArea = rect.width * rect.height
+            const intersectionArea = intersectionWidth * intersectionHeight
+            
+            if (intersectionArea >= originalArea * 0.5) {
+              isInsidePDFContent = true
+              const relativeX = Math.max(0, Math.min(1, (intersectionLeft - canvasRect.left) / canvasRect.width))
+              const relativeY = Math.max(0, Math.min(1, (intersectionTop - canvasRect.top) / canvasRect.height))
+              const relativeWidth = Math.max(0.01, Math.min(1, intersectionWidth / canvasRect.width))
+              const relativeHeight = Math.max(0.01, Math.min(1, intersectionHeight / canvasRect.height))
+              
+              rawRectangles.push({
+                x: relativeX,
+                y: relativeY, 
+                width: relativeWidth,
+                height: relativeHeight
+              })
+            }
+          }
         }
+      }
+      
+      // PDF 영역 외부인 경우 좌표 정보 없이 하이라이트 생성
+      if (!isInsidePDFContent) {
+        console.log('📍 선택된 영역이 PDF 콘텐츠 외부입니다. 좌표 없이 하이라이트를 생성합니다.')
+        // 빈 rectangles 배열로 설정하여 좌표 정보 없이 저장
+        rawRectangles.length = 0
       }
       
       // 같은 줄의 사각형들을 정규화 (비슷한 Y값과 height를 동일하게 맞춤)
@@ -606,11 +671,12 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
       }
       
       // 첫 번째 직사각형을 기본으로 하되, 다각형 정보도 저장
-      const firstRect = rectangles[0] || { x: 0, y: 0, width: 0.1, height: 0.02 }
-      const relativeX = firstRect.x
-      const relativeY = firstRect.y
-      const relativeWidth = firstRect.width
-      const relativeHeight = firstRect.height
+      // PDF 콘텐츠 외부인 경우 좌표를 0으로 설정
+      const firstRect = rectangles[0]
+      const relativeX = firstRect ? firstRect.x : 0
+      const relativeY = firstRect ? firstRect.y : 0
+      const relativeWidth = firstRect ? firstRect.width : 0
+      const relativeHeight = firstRect ? firstRect.height : 0
       
       const newHighlight: Highlight = {
         id: crypto.randomUUID(),
@@ -618,11 +684,11 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
         pageNumber,
         text: currentText,
         note: '',
-        x: relativeX,
-        y: relativeY,
-        width: relativeWidth,
-        height: relativeHeight,
-        rectangles: rectangles // 다각형 정보 저장
+        x: relativeX || 0,
+        y: relativeY || 0,
+        width: relativeWidth || 0,
+        height: relativeHeight || 0,
+        rectangles: rectangles.length > 0 ? rectangles : undefined // 좌표가 없으면 undefined
       }
 
       // 하이라이트 추가 로깅 (디버깅 시에만 활성화)
@@ -638,11 +704,11 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
         page_number: pageNumber,
         selected_text: currentText,
         note: '',
-        position_x: relativeX,
-        position_y: relativeY,
-        position_width: relativeWidth,
-        position_height: relativeHeight,
-        rectangles: JSON.stringify(rectangles), // 다각형 정보를 JSON으로 저장
+        position_x: relativeX || 0, // null 대신 0으로 기본값 설정
+        position_y: relativeY || 0, // null 대신 0으로 기본값 설정
+        position_width: relativeWidth || 0, // null 대신 0으로 기본값 설정
+        position_height: relativeHeight || 0, // null 대신 0으로 기본값 설정
+        rectangles: rectangles.length > 0 ? JSON.stringify(rectangles) : null, // 좌표가 없으면 null
         user_id: user.id
       }
       
@@ -715,6 +781,11 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
   }
 
   const goToHighlight = (highlight: Highlight) => {
+    // AI 답변에서 추출한 하이라이트(페이지 1, 좌표 0,0,0,0)는 페이지 이동하지 않음
+    if (highlight.pageNumber === 1 && highlight.x === 0 && highlight.y === 0 && highlight.width === 0 && highlight.height === 0) {
+      return // 페이지 이동 없이 그냥 리턴
+    }
+    
     // 같은 페이지가 아닐 때만 페이지 로드 상태 초기화
     if (highlight.pageNumber !== pageNumber) {
       setPageLoaded(false)
@@ -799,54 +870,123 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
     setHasNewAnswer(false) // 새 질문 시작 시 알림 초기화
   }
 
+  // AI 답변 텍스트 선택 감지
+  const handleAnswerTextSelection = () => {
+    const selection = window.getSelection()
+    if (selection && selection.toString().trim()) {
+      setSelectedAnswerText(selection.toString().trim())
+    } else {
+      setSelectedAnswerText('')
+    }
+  }
+
+  // AI 답변에서 하이라이트 추가
+  const addAnswerHighlight = async () => {
+    if (!selectedAnswerText || !selectedPDFId || !user) {
+      alert('텍스트를 선택해주세요.')
+      return
+    }
+
+    try {
+      // AI 답변은 페이지 외부 콘텐츠로 처리하여 좌표 0,0,0,0으로 저장
+      const newHighlight: Highlight = {
+        id: crypto.randomUUID(),
+        document_id: selectedPDFId,
+        pageNumber: 1, // AI 답변은 페이지 1로 고정
+        text: selectedAnswerText,
+        note: 'AI 답변에서 추출',
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+        rectangles: undefined
+      }
+
+      // 먼저 UI에 임시로 추가
+      const tempHighlight = { ...newHighlight }
+      setHighlights(prev => [...prev, tempHighlight])
+
+      // API를 통해 하이라이트 저장 (좌표 0,0,0,0으로 저장하여 표시되지 않게 함)
+      const saveData = {
+        document_id: selectedPDFId,
+        page_number: 1, // AI 답변은 페이지 1로 고정
+        selected_text: selectedAnswerText,
+        note: 'AI 답변에서 추출',
+        position_x: 0,
+        position_y: 0,
+        position_width: 0,
+        position_height: 0,
+        rectangles: null,
+        user_id: user.id
+      }
+      
+      const response = await fetch('/api/highlights', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(saveData)
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || '하이라이트 저장에 실패했습니다.')
+      }
+
+      // 임시 하이라이트를 실제 저장된 데이터로 교체
+      if (result.data) {
+        const savedHighlight: Highlight = {
+          id: result.data.id,
+          document_id: result.data.document_id,
+          pageNumber: result.data.page_number,
+          text: result.data.selected_text,
+          note: result.data.note || '',
+          x: result.data.position_x,
+          y: result.data.position_y,
+          width: result.data.position_width,
+          height: result.data.position_height,
+          rectangles: result.data.rectangles ? JSON.parse(result.data.rectangles) : undefined,
+          created_at: result.data.created_at
+        }
+        
+        setHighlights(prev => prev.map(h => h.id === tempHighlight.id ? savedHighlight : h))
+      }
+      
+      setSelectedAnswerText('')
+      
+      // 선택 해제
+      window.getSelection()?.removeAllRanges()
+      
+    } catch (error) {
+      console.error('하이라이트 저장 중 오류:', error)
+    }
+  }
+
   const submitQuestion = async () => {
-    if (!question.trim() || !selectedPDF || !user) return
+    if (!question.trim() || !selectedPDFId || !user) return
     
     setIsLoadingAnswer(true)
     setAnswer('') // 이전 답변 초기화
+    setSelectedAnswerText('') // 선택된 답변 텍스트 초기화
     
     try {
-      console.log('🤖 AI Q&A 요청:', { question, page: pageNumber, document: selectedPDFId })
+      console.log('🤖 AI Q&A 요청:', { question, document: selectedPDFId })
 
-      // 1단계: 현재 페이지의 PDF 추출
-      const formData = new FormData()
-      formData.append('pdf', selectedPDF)
-      formData.append('pageNumber', pageNumber.toString())
-      formData.append('userId', user.id)
-      formData.append('documentId', selectedPDFId || '')
-
-      console.log('📄 PDF 페이지 추출 요청 중...')
-      
-      const extractResponse = await fetch('/api/extract-page', {
-        method: 'POST',
-        body: formData
-      })
-
-      if (!extractResponse.ok) {
-        const error = await extractResponse.json()
-        throw new Error(`PDF 페이지 추출 실패: ${error.error || 'Unknown error'}`)
-      }
-
-      const extractResult = await extractResponse.json()
-      console.log('✅ PDF 페이지 추출 성공')
-
-      // 2단계: FastAPI로 AI Q&A 요청
+      // FastAPI로 AI Q&A 요청 (단순한 JSON 요청)
       console.log('🤖 FastAPI AI Q&A 요청 중...')
       
-      const base64Data = extractResult.pdfData
-      const pdfBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
-      const extractedPdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' })
-      
-      const qaFormData = new FormData()
-      qaFormData.append('file', extractedPdfBlob, `page_${pageNumber}.pdf`)
-      qaFormData.append('document_id', selectedPDFId || '')
-      qaFormData.append('question', question)
-      
-      const FASTAPI_BASE_URL = process.env.NEXT_PUBLIC_FASTAPI_BASE_URL || 'http://localhost:8000'
+      const FASTAPI_BASE_URL = process.env.NEXT_PUBLIC_FASTAPI_BASE_URL || 'http://10.37.173.24:8000'
       
       const qaResponse = await fetch(`${FASTAPI_BASE_URL}/ask`, {
         method: 'POST',
-        body: qaFormData
+        headers: { 
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({ 
+          question: question,
+          document_id: selectedPDFId 
+        })
       })
 
       if (!qaResponse.ok) {
@@ -873,7 +1013,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
       let errorMessage = '알 수 없는 오류'
       if (error instanceof Error) {
         if (error.message.includes('fetch') || error.message.includes('NetworkError')) {
-          errorMessage = `FastAPI 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인하세요.\n(${process.env.NEXT_PUBLIC_FASTAPI_BASE_URL || 'http://localhost:8000'})`
+          errorMessage = `FastAPI 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인하세요.\n(${process.env.NEXT_PUBLIC_FASTAPI_BASE_URL || 'http://10.37.173.24:8000'})`
         } else {
           errorMessage = error.message
         }
@@ -1133,14 +1273,29 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                   <p className="text-sm text-gray-500">{pdfs[0]?.name || '문서'}</p>
                 </div>
               </div>
-              <button
-                onClick={() => setShowAIQA(false)}
-                className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <div className="flex items-center space-x-2">
+                {/* 하이라이트 버튼 */}
+                <button
+                  onClick={addAnswerHighlight}
+                  disabled={!selectedAnswerText}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    selectedAnswerText
+                      ? 'bg-yellow-500 text-white hover:bg-yellow-600 shadow-lg hover:shadow-xl transform hover:scale-105'
+                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  }`}
+                  title={selectedAnswerText ? `선택된 텍스트를 하이라이트로 저장` : '답변에서 텍스트를 선택하세요'}
+                >
+                  📝 하이라이트
+                </button>
+                <button
+                  onClick={() => setShowAIQA(false)}
+                  className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
             
             {/* 질문 입력 영역 */}
@@ -1152,7 +1307,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                 <textarea
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
-                  placeholder="이 페이지의 내용에 대해 궁금한 것을 물어보세요..."
+                  placeholder="이 문서의 내용에 대해 궁금한 것을 물어보세요..."
                   className="flex-1 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none h-24"
                   disabled={isLoadingAnswer}
                 />
@@ -1203,7 +1358,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                       <div className="text-center space-y-2">
                         <p className="text-purple-800 font-medium">AI가 답변을 생성하고 있습니다...</p>
                         <div className="space-y-1">
-                          <p className="text-purple-700 text-sm">📄 문서 내용 분석 중</p>
+                          <p className="text-purple-700 text-sm">📄 전체 문서 분석 중</p>
                           <p className="text-purple-600 text-xs">🤖 질문에 대한 답변 생성 중</p>
                         </div>
                       </div>
@@ -1211,9 +1366,16 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                   </div>
                 ) : (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-                    <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-line leading-relaxed">
+                    <div 
+                      className="prose prose-sm max-w-none text-gray-700 whitespace-pre-line leading-relaxed"
+                      onMouseUp={handleAnswerTextSelection}
+                      onClick={handleAnswerTextSelection}
+                      onKeyUp={handleAnswerTextSelection}
+                      style={{ userSelect: 'text' }}
+                    >
                       {answer}
                     </div>
+                    
                     <div className="mt-4 pt-4 border-t border-green-200">
                       <p className="text-xs text-green-600">
                         답변 생성 시간: {new Date().toLocaleString('ko-KR')}
@@ -1288,7 +1450,7 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                           documentSummary && documentSummary.trim() 
                             ? `전체 문서 AI 요약 보기 (${documentSummary.length}자)` 
                             : summaryCheckInterval
-                            ? `AI 요약 생성 대기 중... (${summaryCheckCount}/100회 체크)`
+                            ? `AI 요약 생성 대기 중... (${summaryCheckCount}/50회 체크)`
                             : 'AI 요약이 아직 생성되지 않았습니다'
                         }
                       >
