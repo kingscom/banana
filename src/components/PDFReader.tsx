@@ -281,39 +281,47 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
         document.head.appendChild(styleElement)
       }
       
-      // 모든 PDF 관련 요소의 텍스트 선택 색상 변경
+      // 모든 PDF 관련 요소의 텍스트 선택 색상 변경 (투명도 높여서 텍스트 가독성 개선)
       styleElement.textContent = `
         .pdf-container ::selection {
           background-color: ${selectedColor} !important;
-          opacity: 0.6;
+          opacity: 0.3;
+          color: #000 !important;
         }
         .pdf-container ::-moz-selection {
           background-color: ${selectedColor} !important;
-          opacity: 0.6;
+          opacity: 0.3;
+          color: #000 !important;
         }
         .react-pdf__Page__textContent ::selection {
           background-color: ${selectedColor} !important;
-          opacity: 0.6;
+          opacity: 0.3;
+          color: #000 !important;
         }
         .react-pdf__Page__textContent ::-moz-selection {
           background-color: ${selectedColor} !important;
-          opacity: 0.6;
+          opacity: 0.3;
+          color: #000 !important;
         }
         .react-pdf__Page__textContent span::selection {
           background-color: ${selectedColor} !important;
-          opacity: 0.6;
+          opacity: 0.3;
+          color: #000 !important;
         }
         .react-pdf__Page__textContent span::-moz-selection {
           background-color: ${selectedColor} !important;
-          opacity: 0.6;
+          opacity: 0.3;
+          color: #000 !important;
         }
         .react-pdf__Page__textContent div::selection {
           background-color: ${selectedColor} !important;
-          opacity: 0.6;
+          opacity: 0.3;
+          color: #000 !important;
         }
         .react-pdf__Page__textContent div::-moz-selection {
           background-color: ${selectedColor} !important;
-          opacity: 0.6;
+          opacity: 0.3;
+          color: #000 !important;
         }
       `
     }
@@ -421,35 +429,43 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
             styleElement.textContent = `
               .pdf-container ::selection {
                 background-color: ${selectedColor} !important;
-                opacity: 0.6;
+                opacity: 0.3;
+                color: #000 !important;
               }
               .pdf-container ::-moz-selection {
                 background-color: ${selectedColor} !important;
-                opacity: 0.6;
+                opacity: 0.3;
+                color: #000 !important;
               }
               .react-pdf__Page__textContent ::selection {
                 background-color: ${selectedColor} !important;
-                opacity: 0.6;
+                opacity: 0.3;
+                color: #000 !important;
               }
               .react-pdf__Page__textContent ::-moz-selection {
                 background-color: ${selectedColor} !important;
-                opacity: 0.6;
+                opacity: 0.3;
+                color: #000 !important;
               }
               .react-pdf__Page__textContent span::selection {
                 background-color: ${selectedColor} !important;
-                opacity: 0.6;
+                opacity: 0.3;
+                color: #000 !important;
               }
               .react-pdf__Page__textContent span::-moz-selection {
                 background-color: ${selectedColor} !important;
-                opacity: 0.6;
+                opacity: 0.3;
+                color: #000 !important;
               }
               .react-pdf__Page__textContent div::selection {
                 background-color: ${selectedColor} !important;
-                opacity: 0.6;
+                opacity: 0.3;
+                color: #000 !important;
               }
               .react-pdf__Page__textContent div::-moz-selection {
                 background-color: ${selectedColor} !important;
-                opacity: 0.6;
+                opacity: 0.3;
+                color: #000 !important;
               }
             `
           }
@@ -669,35 +685,43 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
           styleElement.textContent = `
             .pdf-container ::selection {
               background-color: ${selectedColor} !important;
-              opacity: 0.6;
+              opacity: 0.3;
+              color: #000 !important;
             }
             .pdf-container ::-moz-selection {
               background-color: ${selectedColor} !important;
-              opacity: 0.6;
+              opacity: 0.3;
+              color: #000 !important;
             }
             .react-pdf__Page__textContent ::selection {
               background-color: ${selectedColor} !important;
-              opacity: 0.6;
+              opacity: 0.3;
+              color: #000 !important;
             }
             .react-pdf__Page__textContent ::-moz-selection {
               background-color: ${selectedColor} !important;
-              opacity: 0.6;
+              opacity: 0.3;
+              color: #000 !important;
             }
             .react-pdf__Page__textContent span::selection {
               background-color: ${selectedColor} !important;
-              opacity: 0.6;
+              opacity: 0.3;
+              color: #000 !important;
             }
             .react-pdf__Page__textContent span::-moz-selection {
               background-color: ${selectedColor} !important;
-              opacity: 0.6;
+              opacity: 0.3;
+              color: #000 !important;
             }
             .react-pdf__Page__textContent div::selection {
               background-color: ${selectedColor} !important;
-              opacity: 0.6;
+              opacity: 0.3;
+              color: #000 !important;
             }
             .react-pdf__Page__textContent div::-moz-selection {
               background-color: ${selectedColor} !important;
-              opacity: 0.6;
+              opacity: 0.3;
+              color: #000 !important;
             }
           `
         }
