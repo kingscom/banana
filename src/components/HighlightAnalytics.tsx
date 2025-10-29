@@ -827,6 +827,16 @@ function KeywordActionModal({
   }
 
   const handleConceptMapClick = () => {
+    // 첫 번째 하이라이트의 문서 ID와 키워드를 세션 스토리지에 저장
+    if (keyword.highlights.length > 0) {
+      const firstHighlight = keyword.highlights[0]
+      const conceptMapData = {
+        documentId: firstHighlight.document_id,
+        keyword: keyword.word
+      }
+      sessionStorage.setItem('conceptMapData', JSON.stringify(conceptMapData))
+    }
+    
     if (onNavigateToConceptMap) {
       onNavigateToConceptMap()
     }

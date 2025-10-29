@@ -40,6 +40,31 @@ export default function ConceptMap() {
     }
   }, [user])
 
+  // 세션 스토리지에서 데이터 읽기
+  useEffect(() => {
+    if (typeof window !== 'undefined' && documents.length > 0) {
+      const conceptMapDataStr = sessionStorage.getItem('conceptMapData')
+      if (conceptMapDataStr) {
+        try {
+          const conceptMapData = JSON.parse(conceptMapDataStr)
+          
+          if (conceptMapData.documentId) {
+            setSelectedDocument(conceptMapData.documentId)
+          }
+          
+          if (conceptMapData.keyword) {
+            setQueryText(`${conceptMapData.keyword} 관련 개념들의 연결 관계 분석`)
+          }
+          
+          // 데이터 사용 후 삭제
+          sessionStorage.removeItem('conceptMapData')
+        } catch (error) {
+          console.error('세션 스토리지 데이터 파싱 실패:', error)
+        }
+      }
+    }
+  }, [documents]) // documents가 로드된 후에 실행
+
   const loadDocuments = async () => {
     try {
       if (!user?.id) return
@@ -293,7 +318,7 @@ export default function ConceptMap() {
                     <select
                       value={requestCount}
                       onChange={(e) => setRequestCount(Number(e.target.value))}
-                      className="mt-3 w-full h-10 p-3 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm font-medium shadow-sm transition-all duration-200 mb-1"
+                      className="mt-3 w-full h-10 pl-3 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm font-medium shadow-sm transition-all duration-200 mb-1"
                     >
                       <option value={3}>🔸 3개</option>
                       <option value={5}>🔹 5개</option>
