@@ -32,6 +32,7 @@ export default function ConceptMap() {
   const [queryText, setQueryText] = useState('')
   const [requestCount, setRequestCount] = useState(10)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [successMessage, setSuccessMessage] = useState<string>('')
 
   useEffect(() => {
     if (user) {
@@ -80,41 +81,8 @@ export default function ConceptMap() {
     try {
       setLoading(true)
       
-      const demoConcepts: LocalConcept[] = [
-        {
-          id: '1',
-          name: 'AI 학습',
-          description: '인공지능 기반 문서 학습',
-          position_x: 200,
-          position_y: 150,
-          connections: ['2', '3']
-        },
-        {
-          id: '2',
-          name: 'PDF 처리',
-          description: '문서 업로드 및 분석',
-          position_x: 400,
-          position_y: 100,
-          connections: ['1', '4']
-        },
-        {
-          id: '3',
-          name: '요약 기능',
-          description: 'AI 기반 자동 요약',
-          position_x: 100,
-          position_y: 300,
-          connections: ['1', '4']
-        },
-        {
-          id: '4',
-          name: '하이라이트',
-          description: '중요 부분 표시 및 노트',
-          position_x: 400,
-          position_y: 300,
-          connections: ['2', '3']
-        }
-      ]
-      setConcepts(demoConcepts)
+      // 기본 개념 제거 - 빈 상태로 시작
+      setConcepts([])
     } catch (error) {
       console.error('개념 로드 실패:', error)
     } finally {
@@ -135,34 +103,118 @@ export default function ConceptMap() {
     setIsProcessing(true)
     
     try {
+      // 키워드 추출 (질의문에서 핵심 키워드를 찾거나 기본값 사용)
+      const keyword = extractKeywordFromQuery(queryText) || '개념'
+      
       const requestData = {
-        documents: [selectedDocument],
-        query: queryText,
-        count: requestCount
+        document_id: selectedDocument,
+        keyword: keyword,
+        max_chunks: requestCount // 요청 개수에 따른 청크 수 조정
       }
 
       console.log('FastAPI로 전송할 데이터:', requestData)
       
-      // FastAPI 요청 (실제 구현 시 사용)
-      // const response = await fetch('http://localhost:8000/api/concept-map', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify(requestData)
-      // })
+      // FastAPI 요청
+      const res = await fetch(`${process.env.NEXT_PUBLIC_FASTAPI_BASE_URL}/concept-map`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestData),
+      })
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`)
+      }
+
+      const data = await res.json()
+      console.log('FastAPI 응답 데이터:', data)
       
-      // 임시 처리 - 실제로는 FastAPI 응답을 처리
-      setTimeout(() => {
-        const selectedDoc = documents.find(doc => doc.id === selectedDocument)
-        alert(`요청 완료!\n선택된 문서: ${selectedDoc?.title || selectedDoc?.file_name}\n질의문: ${queryText}\n요청 개수: ${requestCount}개`)
-        setIsProcessing(false)
-      }, 2000)
+      // 응답 데이터를 개념 맵 형태로 변환
+      const newConcepts = processConceptMapData(data, requestCount)
+      setConcepts(newConcepts)
+      
+      const selectedDoc = documents.find(doc => doc.id === selectedDocument)
+      setSuccessMessage(`✅ 개념 연결맵 생성 완료! 📚 ${selectedDoc?.title || selectedDoc?.file_name} 🔍 키워드: ${keyword} 🎯 ${newConcepts.length}개 개념`)
+      
+      // 3초 후 성공 메시지 자동 제거
+      setTimeout(() => setSuccessMessage(''), 3000)
       
     } catch (error) {
       console.error('AI 요청 실패:', error)
-      alert('AI 요청 중 오류가 발생했습니다.')
+      const errorMessage = error instanceof Error ? error.message : '네트워크 연결을 확인해주세요.'
+      alert(`❌ AI 요청 중 오류가 발생했습니다.\n${errorMessage}`)
+    } finally {
       setIsProcessing(false)
+    }
+  }
+
+  // 질의문에서 키워드 추출하는 헬퍼 함수
+  const extractKeywordFromQuery = (query: string): string => {
+    // 간단한 키워드 추출 로직
+    const keywords = query.replace(/[^\w\s가-힣]/g, ' ')
+      .split(/\s+/)
+      .filter(word => word.length > 1 && !['개념', '연결', '관계', '분석', '핵심', '요소', '관련'].includes(word))
+    
+    return keywords[0] || '개념'
+  }
+
+  // FastAPI 응답 데이터를 개념 맵 형태로 변환하는 헬퍼 함수
+  const processConceptMapData = (data: any, maxConcepts: number): LocalConcept[] => {
+    try {
+      // data 구조에 따라 적절히 파싱
+      let concepts: any[] = []
+      
+      if (data.concepts && Array.isArray(data.concepts)) {
+        concepts = data.concepts
+      } else if (data.nodes && Array.isArray(data.nodes)) {
+        concepts = data.nodes
+      } else if (Array.isArray(data)) {
+        concepts = data
+      } else {
+        console.warn('예상치 못한 데이터 구조:', data)
+        return []
+      }
+
+      // 개념들을 원형으로 배치
+      const centerX = 400
+      const centerY = 300
+      const radius = 200
+      const angleStep = (2 * Math.PI) / Math.min(concepts.length, maxConcepts)
+
+      const processedConcepts = concepts.slice(0, maxConcepts).map((concept, index) => {
+        const angle = index * angleStep
+        const x = centerX + Math.cos(angle) * radius
+        const y = centerY + Math.sin(angle) * radius
+
+        return {
+          id: concept.id || `concept-${index}`,
+          name: concept.name || concept.title || concept.concept || `개념 ${index + 1}`,
+          description: concept.description || concept.summary || concept.content || '관련 개념',
+          position_x: Math.max(50, Math.min(750, x)),
+          position_y: Math.max(50, Math.min(550, y)),
+          connections: concept.connections || concept.related || []
+        }
+      })
+
+      // 연결 관계가 없는 경우 자동으로 생성
+      if (processedConcepts.length > 1) {
+        processedConcepts.forEach((concept, index) => {
+          if (concept.connections.length === 0) {
+            // 인접한 개념들과 연결
+            const nextIndex = (index + 1) % processedConcepts.length
+            const prevIndex = (index - 1 + processedConcepts.length) % processedConcepts.length
+            
+            concept.connections = [
+              processedConcepts[nextIndex].id,
+              ...(processedConcepts.length > 2 ? [processedConcepts[prevIndex].id] : [])
+            ]
+          }
+        })
+      }
+
+      return processedConcepts
+    } catch (error) {
+      console.error('데이터 처리 중 오류:', error)
+      return []
     }
   }
 
@@ -190,48 +242,28 @@ export default function ConceptMap() {
                   <Map className="w-6 h-6 text-purple-50" />
                 </div>
                 <div>
-                  <h2 className="library-title text-2xl">지식 연결망</h2>
-                  <p className="library-text opacity-70 text-sm">개념 간의 관계를 시각화하여 학습 효과를 높여보세요</p>
+                  <h2 className="library-title text-2xl">🧠 AI 개념 연결망 생성</h2>
+                  <p className="library-text opacity-70 text-sm">문서를 분석하여 지식의 연결 관계를 시각화합니다</p>
                 </div>
               </div>
             </div>
 
             {/* AI 요청 섹션 */}
-            <div className="bg-gradient-to-br from-white via-blue-50/30 to-purple-50/30 rounded-2xl p-8 border border-blue-100/50 shadow-lg backdrop-blur-sm">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
-                    <Send className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="library-title text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                      🧠 AI 개념 연결망 생성
-                    </h3>
-                    <p className="text-sm text-gray-600 mt-1">문서를 분석하여 지식의 연결 관계를 시각화합니다</p>
+            <div className="bg-gradient-to-br from-white via-blue-50/30 to-purple-50/30 rounded-2xl py-2.5 px-8 border border-blue-100/50 shadow-lg backdrop-blur-sm">
+
+              {/* 성공 메시지 */}
+              {successMessage && (
+                <div className="mb-4 p-3 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span className="text-sm font-medium text-green-800">{successMessage}</span>
                   </div>
                 </div>
-                
-                {selectedDocument && queryText.trim() && (
-                  <div className="hidden lg:block">
-                    <div className="bg-gradient-to-r from-emerald-50 to-blue-50 px-4 py-2 rounded-full border border-emerald-200">
-                      <div className="flex items-center space-x-4 text-sm">
-                        <span className="flex items-center space-x-1">
-                          <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                          <span className="text-gray-700">문서 선택됨</span>
-                        </span>
-                        <span className="flex items-center space-x-1">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          <span className="text-gray-700">개념 {requestCount}개</span>
-                        </span>
-                        <span className="flex items-center space-x-1">
-                          <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                          <span className="text-gray-700">{queryText.length}자</span>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+              )}
 
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 h-20">
                 {/* 문서 선택 - 20% */}
@@ -375,6 +407,26 @@ export default function ConceptMap() {
               )}
             </div>
           </div>
+
+          {/* 빈 상태 메시지 */}
+          {concepts.length === 0 && (
+            <div className="text-center max-w-md mx-auto py-8">
+              <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                <Map className="w-12 h-12 text-gray-400" />
+              </div>
+              <h3 className="library-title text-xl text-gray-600 mb-3">선택된 데이터가 없습니다</h3>
+              <p className="library-text text-sm text-gray-500 leading-relaxed mb-4">
+                문서를 선택하고 질의문을 입력한 후<br />
+                AI 요청 버튼을 클릭하여<br />
+                개념 연결망을 생성해보세요
+              </p>
+              <div className="flex items-center justify-center space-x-2 text-gray-400">
+                <div className="w-2 h-2 bg-gray-300 rounded-full animate-pulse"></div>
+                <div className="w-2 h-2 bg-gray-300 rounded-full animate-pulse delay-100"></div>
+                <div className="w-2 h-2 bg-gray-300 rounded-full animate-pulse delay-200"></div>
+              </div>
+            </div>
+          )}
 
           <div className="relative h-full">
             <svg className="absolute inset-0 pointer-events-none" style={{ zIndex: 1 }}>
