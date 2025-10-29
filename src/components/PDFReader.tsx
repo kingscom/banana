@@ -253,6 +253,11 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
   const [selectedColor, setSelectedColor] = useState<string>('#fde047') // 기본 노란색
   const [showColorPalette, setShowColorPalette] = useState<boolean>(false)
 
+  // 필사 기록 작성 관련 상태
+  const [showNoteInput, setShowNoteInput] = useState<boolean>(false)
+  const [noteInputText, setNoteInputText] = useState<string>('')
+  const [isAddingNote, setIsAddingNote] = useState<boolean>(false)
+
   // 하이라이트 색상 팔레트
   const highlightColors = [
     { name: '노란색', color: '#fde047' },
@@ -1163,6 +1168,98 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
     }
   }
 
+  // 필사 기록을 하이라이트로 저장하는 함수
+  const addNoteAsHighlight = async () => {
+    if (!noteInputText.trim() || !selectedPDFId || !user) {
+      alert('내용을 입력해주세요.')
+      return
+    }
+
+    setIsAddingNote(true)
+
+    try {
+      // 필사 기록은 현재 페이지의 외부 콘텐츠로 처리하여 좌표 0,0,0,0으로 저장
+      const newHighlight: Highlight = {
+        id: crypto.randomUUID(),
+        document_id: selectedPDFId,
+        pageNumber: pageNumber, // 현재 페이지
+        text: noteInputText.trim(),
+        note: '필사 기록',
+        x: 0,
+        y: 0, 
+        width: 0,
+        height: 0,
+        rectangles: undefined,
+        color: selectedColor // 선택된 색상 사용
+      }
+
+      // 먼저 UI에 임시로 추가
+      const tempHighlight = { ...newHighlight }
+      setHighlights(prev => [...prev, tempHighlight])
+
+      // API를 통해 하이라이트 저장
+      const saveData = {
+        document_id: selectedPDFId,
+        page_number: pageNumber,
+        selected_text: noteInputText.trim(),
+        note: '필사 기록',
+        position_x: 0,
+        position_y: 0,
+        position_width: 0,
+        position_height: 0,
+        rectangles: null,
+        color: selectedColor,
+        user_id: user.id
+      }
+      
+      const response = await fetch('/api/highlights', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(saveData)
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        // 저장 실패 시 임시 하이라이트 제거
+        setHighlights(prev => prev.filter(h => h.id !== tempHighlight.id))
+        throw new Error(result.error || '필사 기록 저장에 실패했습니다.')
+      }
+
+      // 임시 하이라이트를 실제 저장된 데이터로 교체
+      if (result.data) {
+        const savedHighlight: Highlight = {
+          id: result.data.id,
+          document_id: result.data.document_id,
+          pageNumber: result.data.page_number,
+          text: result.data.selected_text,
+          note: result.data.note || '',
+          x: result.data.position_x || 0,
+          y: result.data.position_y || 0,
+          width: result.data.position_width || 0,
+          height: result.data.position_height || 0,
+          rectangles: result.data.rectangles ? JSON.parse(result.data.rectangles) : undefined,
+          color: result.data.color || '#fde047',
+          created_at: result.data.created_at
+        }
+        
+        setHighlights(prev => prev.map(h => h.id === tempHighlight.id ? savedHighlight : h))
+      }
+
+      // 입력 창 닫기 및 초기화
+      setNoteInputText('')
+      setShowNoteInput(false)
+      
+    } catch (error) {
+      console.error('필사 기록 저장 중 오류:', error)
+      alert(error instanceof Error ? error.message : '필사 기록 저장 중 오류가 발생했습니다.')
+    } finally {
+      setIsAddingNote(false)
+    }
+  }
+
   const submitQuestion = async () => {
     if (!question.trim() || !selectedPDFId || !user) return
     
@@ -1398,10 +1495,14 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
     }
   }, [targetHighlightId, highlights, pageLoaded, pageNumber])
 
-  // 컴포넌트 언마운트 시 인터벌 정리
+  // 컴포넌트 언마운트 시 인터벌 정리 및 상태 초기화
   useEffect(() => {
     return () => {
       stopSummaryCheck()
+      // 필사 기록 상태 초기화
+      setShowNoteInput(false)
+      setNoteInputText('')
+      setIsAddingNote(false)
     }
   }, [])
 
@@ -1452,6 +1553,119 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
               >
                 닫기
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 필사 기록 입력 팝업 모달 */}
+      {showNoteInput && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[200]">
+          <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900">📝 필사 기록 작성</h3>
+                  <p className="text-sm text-gray-500">페이지 {pageNumber}에 기록하고 싶은 내용을 입력하세요</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowNoteInput(false)
+                  setNoteInputText('')
+                }}
+                disabled={isAddingNote}
+                className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* 입력 영역 */}
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-3">
+                💭 기록할 내용
+              </label>
+              <textarea
+                value={noteInputText}
+                onChange={(e) => setNoteInputText(e.target.value)}
+                placeholder="이 페이지에서 기억하고 싶은 내용, 생각, 메모 등을 자유롭게 작성해보세요..."
+                className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none h-32"
+                disabled={isAddingNote}
+                maxLength={500}
+              />
+              <div className="flex justify-between items-center mt-2">
+                <p className="text-xs text-gray-500">
+                  💡 이 내용은 하이라이트 목록에 페이지별로 저장됩니다
+                </p>
+                <p className="text-xs text-gray-400">
+                  {noteInputText.length}/500
+                </p>
+              </div>
+            </div>
+            
+            {/* 색상 선택 미리보기 */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
+              <div className="flex items-center space-x-3">
+                <span className="text-sm font-medium text-gray-700">하이라이트 색상:</span>
+                <div 
+                  className="w-6 h-6 rounded-full border-2 border-gray-300"
+                  style={{ backgroundColor: selectedColor }}
+                />
+                <span className="text-sm text-gray-600">
+                  {highlightColors.find(c => c.color === selectedColor)?.name || '노란색'}
+                </span>
+              </div>
+            </div>
+            
+            {/* 버튼 영역 */}
+            <div className="flex space-x-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowNoteInput(false)
+                  setNoteInputText('')
+                }}
+                disabled={isAddingNote}
+                className="px-6 py-2.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors font-medium disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={addNoteAsHighlight}
+                disabled={!noteInputText.trim() || isAddingNote}
+                className={`px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 min-w-[120px] ${
+                  !noteInputText.trim() || isAddingNote
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-xl transform hover:scale-105'
+                }`}
+              >
+                {isAddingNote ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    <span>저장 중...</span>
+                  </div>
+                ) : (
+                  '📝 기록 저장'
+                )}
+              </button>
+            </div>
+            
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="text-sm text-gray-500">
+                <span className="inline-flex items-center space-x-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>필사 기록은 현재 페이지({pageNumber}페이지)의 하이라이트로 저장됩니다</span>
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -1742,7 +1956,21 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                         </svg>
                       </button>
                     </div>
+
+                   
+
                     <div className="flex space-x-2">
+                       {/* 필사 기록 추가 버튼 */}
+                      <button
+                        onClick={() => setShowNoteInput(true)}
+                        className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
+                        title="페이지에 필사 기록 추가"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        
+                      </button>
                       {/* 하이라이트 버튼과 색상 선택기 */}
                       <div className="flex items-center space-x-1">
                         <button
@@ -1831,6 +2059,8 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                           )}
                         </div>
                       </div>
+                      
+                      
                       <button
                         onClick={() => generateSummary(false)}
                         className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl hover:from-cyan-600 hover:to-blue-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
@@ -2163,6 +2393,18 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                         style={{ backgroundColor: highlight.color || '#fde047' }}
                         title={`하이라이트 색상: ${highlightColors.find(c => c.color === highlight.color)?.name || '노란색'}`}
                       />
+                      {/* 필사 기록 표시 */}
+                      {highlight.note === '필사 기록' && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+                          📝 필사
+                        </span>
+                      )}
+                      {/* AI 답변에서 추출 표시 */}
+                      {highlight.note === 'AI 답변에서 추출' && (
+                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
+                          🤖 AI
+                        </span>
+                      )}
                     </div>
                     <button
                       onClick={(e) => {
