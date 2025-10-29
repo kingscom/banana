@@ -1849,11 +1849,11 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                         </p>
                       </div>
                     </div>
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-1.5">
                       <button
                         onClick={openDocumentSummary}
                         disabled={!documentSummary}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                           documentSummary && documentSummary.trim()
                             ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
                             : summaryCheckInterval
@@ -1869,15 +1869,15 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                         }
                       >
                         {documentSummary && documentSummary.trim() 
-                          ? '📄 AI 요약보기 ✅' 
+                          ? '📄 요약보기 ✅' 
                           : summaryCheckInterval 
-                          ? `📄 AI 요약보기 ⏱️ (${summaryCheckCount})` 
-                          : '📄 AI 요약보기'
+                          ? `📄 요약보기 ⏱️ (${summaryCheckCount})` 
+                          : '📄 요약보기'
                         }
                       </button>
                       <button
                         onClick={() => setShowHighlights(!showHighlights)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                           showHighlights 
                             ? 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200' 
                             : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
@@ -1959,24 +1959,24 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
 
                    
 
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-1.5">
                        {/* 필사 기록 추가 버튼 */}
                       <button
                         onClick={() => setShowNoteInput(true)}
-                        className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
+                        className="flex items-center space-x-1.5 px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105 text-xs"
                         title="페이지에 필사 기록 추가"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
-                        
+                        <span>필사</span>
                       </button>
                       {/* 하이라이트 버튼과 색상 선택기 */}
-                      <div className="flex items-center space-x-1">
+                      <div className="flex items-center space-x-0">
                         <button
                           onClick={addHighlight}
                           disabled={!selectedText}
-                          className={`flex items-center space-x-2 px-4 py-2.5 rounded-l-xl text-sm font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none ${
+                          className={`flex items-center space-x-1.5 px-3 py-2 rounded-l-lg text-xs font-medium transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none ${
                             selectedText 
                               ? 'text-white hover:opacity-90' 
                               : 'bg-gray-200 text-gray-500 cursor-not-allowed shadow-sm'
@@ -1987,21 +1987,22 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                           }}
                           title={selectedText ? `선택된 텍스트: "${selectedText.substring(0, 50)}..."` : "텍스트를 선택하세요"}
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v2h4a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-1v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4z" />
                           </svg>
-                          <span>하이라이트 {selectedText && `(${selectedText.length}자)`}</span>
+                          <span>하이라이트</span>
+                          {selectedText && <span className="text-xs opacity-75">({selectedText.length}자)</span>}
                         </button>
                         
                         {/* 색상 선택 버튼 */}
                         <div className="relative">
                           <button
                             onClick={() => setShowColorPalette(!showColorPalette)}
-                            className="flex items-center justify-center w-10 h-10 rounded-r-xl border-l border-white/20 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                            className="flex items-center justify-center w-8 h-8 rounded-r-lg border-l border-white/20 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
                             style={{ backgroundColor: selectedColor }}
                             title="하이라이트 색상 선택"
                           >
-                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                             </svg>
                           </button>
@@ -2063,9 +2064,9 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
                       
                       <button
                         onClick={() => generateSummary(false)}
-                        className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl hover:from-cyan-600 hover:to-blue-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
+                        className="flex items-center space-x-1.5 px-3 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg hover:from-cyan-600 hover:to-blue-700 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105 text-xs"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                         </svg>
                         <span>AI 요약</span>
@@ -2073,18 +2074,18 @@ export default function PDFReader({ pdfs, initialPage, targetHighlightId }: PDFR
 
                       <button
                         onClick={handleAskAI}
-                        className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${
+                        className={`flex items-center space-x-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${
                           hasNewAnswer 
                             ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700' 
                             : 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700'
                         }`}
                         title={hasNewAnswer ? "새로운 답변이 있습니다!" : "AI에게 질문하기"}
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <span>
-                          {hasNewAnswer ? '💬 답변완료!' : '🤖 AI 질의'}
+                          {hasNewAnswer ? '답변완료!' : 'AI 질의'}
                         </span>
                       </button>
                     </div>
