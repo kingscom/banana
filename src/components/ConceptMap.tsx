@@ -12,6 +12,17 @@ interface LocalConcept {
   position_x: number
   position_y: number
   connections: string[]
+  similarity?: number
+  page?: string
+  chunk_index?: number
+}
+
+interface SimilarityData {
+  chunk_index: number
+  page: string
+  source: string
+  similarity: number
+  keyword: string
 }
 
 interface Document {
@@ -160,7 +171,48 @@ export default function ConceptMap() {
   // FastAPI 응답 데이터를 개념 맵 형태로 변환하는 헬퍼 함수
   const processConceptMapData = (data: any, maxConcepts: number): LocalConcept[] => {
     try {
-      // data 구조에 따라 적절히 파싱
+      // similarities 데이터가 있는 경우 벡터 형태로 처리
+      if (data.similarities && Array.isArray(data.similarities)) {
+        const similarities: SimilarityData[] = data.similarities
+        
+        // 전체 뷰포트 중심 (더 넓은 공간 활용)
+        const centerX = 500
+        const centerY = 350
+        
+        // similarity를 벡터 길이로 사용 (역비례: 높은 similarity = 가까운 거리)
+        const processedConcepts = similarities.slice(0, maxConcepts).map((item, index) => {
+          const angle = (index * 2 * Math.PI) / Math.min(similarities.length, maxConcepts)
+          
+          // similarity를 거리로 역변환 (높은 similarity = 짧은 거리)
+          const minSimilarity = 0.75
+          const maxSimilarity = 1.0
+          const minRadius = 150  // 가장 가까운 거리 (높은 similarity)
+          const maxRadius = 450  // 가장 먼 거리 (낮은 similarity)
+          
+          // 역비례 계산: similarity가 높을수록 짧은 거리
+          const normalizedSimilarity = (item.similarity - minSimilarity) / (maxSimilarity - minSimilarity)
+          const radius = maxRadius - (normalizedSimilarity * (maxRadius - minRadius))
+          
+          const x = centerX + Math.cos(angle) * radius
+          const y = centerY + Math.sin(angle) * radius
+          
+          return {
+            id: `chunk-${item.chunk_index}`,
+            name: `Chunk ${item.chunk_index}`,
+            description: `Page ${item.page} | Similarity: ${(item.similarity * 100).toFixed(1)}%`,
+            position_x: Math.max(30, Math.min(970, x)),
+            position_y: Math.max(30, Math.min(670, y)),
+            connections: [],
+            similarity: item.similarity,
+            page: item.page,
+            chunk_index: item.chunk_index
+          }
+        })
+        
+        return processedConcepts
+      }
+      
+      // 기존 데이터 구조 처리 (nodes/concepts)
       let concepts: any[] = []
       
       if (data.concepts && Array.isArray(data.concepts)) {
@@ -265,9 +317,9 @@ export default function ConceptMap() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 h-20">
-                {/* 문서 선택 - 20% */}
-                <div className="lg:col-span-1 space-y-2 h-full">
+              <div className="flex flex-col lg:flex-row gap-6 h-20">
+                {/* 문서 선택 - 25% */}
+                <div className="lg:w-[25%] space-y-2 h-full">
                   <label className="block text-sm font-bold text-gray-800 flex items-center space-x-2">
                     <div className="w-6 h-6 bg-emerald-100 rounded-lg flex items-center justify-center">
                       <FileText className="w-3 h-3 text-emerald-600" />
@@ -302,7 +354,7 @@ export default function ConceptMap() {
                 </div>
 
                 {/* 질의문 입력 - 40% */}
-                <div className="lg:col-span-2 space-y-2 h-full">
+                <div className="lg:w-[40%] space-y-2 h-full">
                   <label className="block text-sm font-bold text-gray-800 flex items-center space-x-2">
                     <div className="w-6 h-6 bg-blue-100 rounded-lg flex items-center justify-center">
                       <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -334,8 +386,8 @@ export default function ConceptMap() {
                   
                 </div>
 
-                {/* 개념 개수 - 20% */}
-                <div className="lg:col-span-1 space-y-2 h-full">
+                {/* 개념 개수 - 15% */}
+                <div className="lg:w-[15%] space-y-2 h-full">
                   <label className="block text-sm font-bold text-gray-800 flex items-center space-x-2">
                     <div className="w-6 h-6 bg-purple-100 rounded-lg flex items-center justify-center">
                       <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -359,7 +411,7 @@ export default function ConceptMap() {
                 </div>
 
                 {/* AI 요청 버튼 - 20% */}
-                <div className="lg:col-span-1 space-y-2 h-full flex flex-col">
+                <div className="lg:w-[20%] space-y-2 h-full flex flex-col">
                   <label className="block text-sm font-bold text-gray-800 flex items-center space-x-2">
                     <div className="w-6 h-6 bg-pink-100 rounded-lg flex items-center justify-center">
                       <Send className="w-3 h-3 text-pink-600" />
@@ -413,7 +465,7 @@ export default function ConceptMap() {
               <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
                 <Map className="w-12 h-12 text-gray-400" />
               </div>
-              <h3 className="library-title text-xl text-gray-600 mb-3">선택된 데이터가 없습니다</h3>
+              <h3 className="library-title text-xl text-gray-600 mb-3">조회된 데이터가 없습니다</h3>
               <p className="library-text text-sm text-gray-500 leading-relaxed mb-4">
                 문서를 선택하고 질의문을 입력한 후<br />
                 AI 요청 버튼을 클릭하여<br />
@@ -432,14 +484,142 @@ export default function ConceptMap() {
             <div className="relative h-full">
               <svg className="absolute inset-0 pointer-events-none" style={{ zIndex: 1 }}>
                 <defs>
-                  <linearGradient id="connectionGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.8" />
-                    <stop offset="50%" stopColor="#d97706" stopOpacity="0.6" />
-                    <stop offset="100%" stopColor="#92400e" stopOpacity="0.8" />
+                  <linearGradient id="vectorGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.8" />
+                    <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.6" />
+                    <stop offset="100%" stopColor="#ec4899" stopOpacity="0.8" />
                   </linearGradient>
+                  <radialGradient id="centralGradient">
+                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.3" />
+                    <stop offset="70%" stopColor="#8b5cf6" stopOpacity="0.1" />
+                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.05" />
+                  </radialGradient>
+                  <marker
+                    id="arrowhead"
+                    markerWidth="10"
+                    markerHeight="10"
+                    refX="9"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 10 3, 0 6" fill="#8b5cf6" />
+                  </marker>
                 </defs>
+                
+                {/* 중앙 노드 - 전체 페이지를 커버하는 큰 원 */}
+                <circle cx="500" cy="350" r="100" fill="url(#centralGradient)" />
+                <circle cx="500" cy="350" r="60" fill="#8b5cf6" opacity="0.2" />
+                <circle cx="500" cy="350" r="40" fill="#8b5cf6" opacity="0.4" />
+                <circle cx="500" cy="350" r="20" fill="#8b5cf6" opacity="0.6" />
+                <circle cx="500" cy="350" r="10" fill="#8b5cf6" opacity="0.8" />
+                
+                {/* 중앙 텍스트 - 검색어 표시 */}
+                <text
+                  x="500"
+                  y="345"
+                  fontSize="16"
+                  fill="#6b21a8"
+                  textAnchor="middle"
+                  fontWeight="700"
+                >
+                  {queryText || '검색 키워드'}
+                </text>
+                <text
+                  x="500"
+                  y="365"
+                  fontSize="12"
+                  fill="#9333ea"
+                  textAnchor="middle"
+                  fontWeight="500"
+                >
+                  Vector Similarity Map
+                </text>
+                
+                {/* 벡터 선 - 중앙에서 각 노드로 */}
+                {concepts.map((concept) => {
+                  const targetX = concept.position_x + 72
+                  const targetY = concept.position_y + 40
+                  
+                  // similarity 값에 따른 선 굵기 (높을수록 굵음)
+                  const strokeWidth = concept.similarity 
+                    ? 1 + (concept.similarity - 0.75) * 16
+                    : 3
+                  
+                  // similarity 값에 따른 색상 투명도
+                  const opacity = concept.similarity 
+                    ? 0.4 + (concept.similarity - 0.75) * 2
+                    : 0.6
+                  
+                  // 선의 중간 지점 계산
+                  const midX = (500 + targetX) / 2
+                  const midY = (350 + targetY) / 2
+                  
+                  // 거리 계산
+                  const distance = Math.sqrt(Math.pow(targetX - 500, 2) + Math.pow(targetY - 350, 2))
+                  
+                  return (
+                    <g key={concept.id}>
+                      {/* 벡터 선 */}
+                      <line
+                        x1="500"
+                        y1="350"
+                        x2={targetX}
+                        y2={targetY}
+                        stroke="url(#vectorGradient)"
+                        strokeWidth={strokeWidth}
+                        opacity={opacity}
+                        markerEnd="url(#arrowhead)"
+                      />
+                      
+                      {/* similarity 값 표시 (배경) */}
+                      {concept.similarity && (
+                        <>
+                          <rect
+                            x={midX - 28}
+                            y={midY - 14}
+                            width="56"
+                            height="20"
+                            rx="10"
+                            fill="white"
+                            opacity="0.9"
+                            stroke="#8b5cf6"
+                            strokeWidth="1.5"
+                          />
+                          <text
+                            x={midX}
+                            y={midY}
+                            fontSize="11"
+                            fill="#6b21a8"
+                            textAnchor="middle"
+                            fontWeight="700"
+                            dominantBaseline="middle"
+                          >
+                            {(concept.similarity * 100).toFixed(1)}%
+                          </text>
+                        </>
+                      )}
+                      
+                      {/* 거리 표시 (선 시작 부분) */}
+                      {concept.similarity && (
+                        <text
+                          x={500 + (targetX - 500) * 0.2}
+                          y={350 + (targetY - 350) * 0.2}
+                          fontSize="9"
+                          fill="#9ca3af"
+                          textAnchor="middle"
+                          fontWeight="500"
+                          opacity="0.7"
+                        >
+                          {Math.round(distance)}px
+                        </text>
+                      )}
+                    </g>
+                  )
+                })}
+                
+                {/* 기존 연결선 (connections가 있는 경우) */}
                 {concepts.map((concept) =>
-                  concept.connections.map((connectionId) => {
+                  concept.connections?.map((connectionId) => {
                     const targetConcept = concepts.find(c => c.id === connectionId)
                     if (!targetConcept) return null
                     
@@ -450,9 +630,10 @@ export default function ConceptMap() {
                         y1={concept.position_y + 30}
                         x2={targetConcept.position_x + 60}
                         y2={targetConcept.position_y + 30}
-                        stroke="url(#connectionGradient)"
-                        strokeWidth="3"
-                        strokeDasharray="8,4"
+                        stroke="#f59e0b"
+                        strokeWidth="2"
+                        strokeDasharray="4,4"
+                        opacity="0.4"
                       />
                     )
                   })
@@ -460,44 +641,76 @@ export default function ConceptMap() {
               </svg>
 
               <div className="relative" style={{ zIndex: 2 }}>
-                {concepts.map((concept, index) => (
-                <div
-                  key={concept.id}
-                  className="absolute w-36 book-card cursor-pointer transition-all duration-300 hover:scale-105 rounded-xl p-4 hover:shadow-lg"
-                  style={{ left: concept.position_x, top: concept.position_y }}
-                >
-                  <div className="flex items-start space-x-2">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      index % 4 === 0 ? 'bg-blue-100' :
-                      index % 4 === 1 ? 'bg-green-100' :
-                      index % 4 === 2 ? 'bg-purple-100' : 'bg-orange-100'
-                    }`}>
-                      <BookOpen className={`w-4 h-4 ${
-                        index % 4 === 0 ? 'text-blue-600' :
-                        index % 4 === 1 ? 'text-green-600' :
-                        index % 4 === 2 ? 'text-purple-600' : 'text-orange-600'
-                      }`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="library-title text-sm font-semibold mb-1 leading-tight">
-                        {concept.name}
-                      </h3>
-                      <p className="library-text text-xs opacity-70 line-clamp-3">
-                        {concept.description}
-                      </p>
-                    </div>
-                  </div>
+                {concepts.map((concept, index) => {
+                  // similarity 값에 따른 색상 선택
+                  const getSimilarityColor = (similarity?: number) => {
+                    if (!similarity) return index % 4
+                    if (similarity >= 0.85) return 0 // blue
+                    if (similarity >= 0.82) return 1 // green
+                    if (similarity >= 0.80) return 2 // purple
+                    return 3 // orange
+                  }
                   
-                  {concept.connections.length > 0 && (
-                    <div className="mt-2 flex items-center space-x-1">
-                      <Link className="w-3 h-3 text-amber-600" />
-                      <span className="text-xs library-text opacity-60">
-                        {concept.connections.length}개 연결
-                      </span>
+                  const colorIndex = getSimilarityColor(concept.similarity)
+                  
+                  return (
+                    <div
+                      key={concept.id}
+                      className="absolute w-36 book-card cursor-pointer transition-all duration-300 hover:scale-105 rounded-xl p-4 hover:shadow-lg"
+                      style={{ left: concept.position_x, top: concept.position_y }}
+                    >
+                      <div className="flex items-start space-x-2">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                          colorIndex === 0 ? 'bg-blue-100' :
+                          colorIndex === 1 ? 'bg-green-100' :
+                          colorIndex === 2 ? 'bg-purple-100' : 'bg-orange-100'
+                        }`}>
+                          <BookOpen className={`w-4 h-4 ${
+                            colorIndex === 0 ? 'text-blue-600' :
+                            colorIndex === 1 ? 'text-green-600' :
+                            colorIndex === 2 ? 'text-purple-600' : 'text-orange-600'
+                          }`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="library-title text-sm font-semibold mb-1 leading-tight">
+                            {concept.name}
+                          </h3>
+                          <p className="library-text text-xs opacity-70 line-clamp-3">
+                            {concept.description}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* similarity 정보 또는 connections 표시 */}
+                      {concept.similarity ? (
+                        <div className="mt-2 flex items-center justify-between">
+                          <div className="flex items-center space-x-1">
+                            <div className={`w-2 h-2 rounded-full ${
+                              concept.similarity >= 0.85 ? 'bg-blue-500' :
+                              concept.similarity >= 0.82 ? 'bg-green-500' :
+                              concept.similarity >= 0.80 ? 'bg-purple-500' : 'bg-orange-500'
+                            }`}></div>
+                            <span className="text-xs library-text font-semibold">
+                              {(concept.similarity * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                          {concept.page && (
+                            <span className="text-xs library-text opacity-60">
+                              p.{concept.page}
+                            </span>
+                          )}
+                        </div>
+                      ) : concept.connections && concept.connections.length > 0 && (
+                        <div className="mt-2 flex items-center space-x-1">
+                          <Link className="w-3 h-3 text-amber-600" />
+                          <span className="text-xs library-text opacity-60">
+                            {concept.connections.length}개 연결
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
