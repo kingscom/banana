@@ -54,7 +54,7 @@ export default function ConceptMap() {
           }
           
           if (conceptMapData.keyword) {
-            setQueryText(`${conceptMapData.keyword} 관련 개념들의 연결 관계 분석`)
+            setQueryText(`${conceptMapData.keyword}`)
           }
           
           // 데이터 사용 후 삭제
@@ -277,11 +277,10 @@ export default function ConceptMap() {
                   
                   <div className="h-full flex flex-col">
                     {documents.length === 0 ? (
-                      <div className="flex-1 bg-white rounded-xl border border-gray-200/80 shadow-sm flex items-center justify-center">
-                        <div className="text-center py-4 text-gray-500">
-                          <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <div className="h-12 bg-white rounded-xl border border-gray-200/80 shadow-sm flex items-center justify-center">
+                        <div className="text-center text-gray-500">
+                          <FileText className="w-4 h-4 mx-auto mb-1 opacity-50" />
                           <p className="text-xs font-medium text-gray-600">문서 없음</p>
-                          <p className="text-xs text-gray-500">PDF 업로드 필요</p>
                         </div>
                       </div>
                     ) : (
@@ -319,7 +318,7 @@ export default function ConceptMap() {
                       onChange={(e) => setQueryText(e.target.value)}
                       placeholder="어떤 개념들의 연결 관계를 분석하고 싶나요?&#10;예: '머신러닝과 딥러닝의 핵심 개념', '마케팅 전략의 주요 요소들'"
                       className="w-full h-12 p-2 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm leading-4 transition-all duration-200 shadow-sm overflow-hidden"
-                      maxLength={500}
+                      maxLength={50}
                       rows={2}
                     />
                     <div className="absolute bottom-2 right-2 flex items-center space-x-2">
@@ -328,7 +327,7 @@ export default function ConceptMap() {
                         queryText.length > 300 ? 'bg-yellow-100 text-yellow-600' :
                         'bg-gray-100 text-gray-500'
                       }`}>
-                        {queryText.length}/500
+                        {queryText.length}/50
                       </div>
                     </div>
                   </div>
@@ -409,7 +408,7 @@ export default function ConceptMap() {
           </div>
 
           {/* 빈 상태 메시지 */}
-          {concepts.length === 0 && (
+          {!loading && concepts.length === 0 && (
             <div className="text-center max-w-md mx-auto py-8">
               <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
                 <Map className="w-12 h-12 text-gray-400" />
@@ -428,38 +427,40 @@ export default function ConceptMap() {
             </div>
           )}
 
-          <div className="relative h-full">
-            <svg className="absolute inset-0 pointer-events-none" style={{ zIndex: 1 }}>
-              <defs>
-                <linearGradient id="connectionGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.8" />
-                  <stop offset="50%" stopColor="#d97706" stopOpacity="0.6" />
-                  <stop offset="100%" stopColor="#92400e" stopOpacity="0.8" />
-                </linearGradient>
-              </defs>
-              {concepts.map((concept) =>
-                concept.connections.map((connectionId) => {
-                  const targetConcept = concepts.find(c => c.id === connectionId)
-                  if (!targetConcept) return null
-                  
-                  return (
-                    <line
-                      key={`${concept.id}-${connectionId}`}
-                      x1={concept.position_x + 60}
-                      y1={concept.position_y + 30}
-                      x2={targetConcept.position_x + 60}
-                      y2={targetConcept.position_y + 30}
-                      stroke="url(#connectionGradient)"
-                      strokeWidth="3"
-                      strokeDasharray="8,4"
-                    />
-                  )
-                })
-              )}
-            </svg>
+          {/* 개념 맵 영역 - 로딩이 완료되고 개념이 있을 때만 표시 */}
+          {!loading && concepts.length > 0 && (
+            <div className="relative h-full">
+              <svg className="absolute inset-0 pointer-events-none" style={{ zIndex: 1 }}>
+                <defs>
+                  <linearGradient id="connectionGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.8" />
+                    <stop offset="50%" stopColor="#d97706" stopOpacity="0.6" />
+                    <stop offset="100%" stopColor="#92400e" stopOpacity="0.8" />
+                  </linearGradient>
+                </defs>
+                {concepts.map((concept) =>
+                  concept.connections.map((connectionId) => {
+                    const targetConcept = concepts.find(c => c.id === connectionId)
+                    if (!targetConcept) return null
+                    
+                    return (
+                      <line
+                        key={`${concept.id}-${connectionId}`}
+                        x1={concept.position_x + 60}
+                        y1={concept.position_y + 30}
+                        x2={targetConcept.position_x + 60}
+                        y2={targetConcept.position_y + 30}
+                        stroke="url(#connectionGradient)"
+                        strokeWidth="3"
+                        strokeDasharray="8,4"
+                      />
+                    )
+                  })
+                )}
+              </svg>
 
-            <div className="relative" style={{ zIndex: 2 }}>
-              {concepts.map((concept, index) => (
+              <div className="relative" style={{ zIndex: 2 }}>
+                {concepts.map((concept, index) => (
                 <div
                   key={concept.id}
                   className="absolute w-36 book-card cursor-pointer transition-all duration-300 hover:scale-105 rounded-xl p-4 hover:shadow-lg"
@@ -496,9 +497,10 @@ export default function ConceptMap() {
                     </div>
                   )}
                 </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
